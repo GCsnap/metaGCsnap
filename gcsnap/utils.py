@@ -401,3 +401,16 @@ class CustomLogger():
         logger = logging.getLogger('iteration')
         logger.info(msg)        
 # ------------------------------------------------------
+
+def handle_compressed_fasta(fasta) -> str:
+    """
+    Handle compressed or uncompressed FASTA files.
+    :return: Path to the uncompressed FASTA file.
+    """
+    if fasta.endswith(".gz"):
+        #original_extension = Path(fasta).stem.split('.')[-1]  # Get the original file extension
+        uncompressed_path = fasta[:-3]
+        with gzip.open(fasta, "rt") as compressed, open(uncompressed_path, "w") as uncompressed:
+            uncompressed.write(compressed.read())
+        return uncompressed_path
+    return fasta

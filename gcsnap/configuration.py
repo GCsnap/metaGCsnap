@@ -47,9 +47,6 @@ class CustomArgumentParser(argparse.ArgumentParser):
             help_text = details['help']
             help_choices = details.get('choices')            
             default_value = self.str_to_none(details['value'])
-             # Check if this argument can take multiple values
-            nargs_value = details.get('nargs', None)  # Default to None if 'nargs' is not in the config
-
             
             if value_type == bool:
                 # argparse does not support bool type in config, so we need to convert it
@@ -57,7 +54,7 @@ class CustomArgumentParser(argparse.ArgumentParser):
                                   help=help_text)
             else:
                 self.add_argument(f'--{key}', type=value_type, default=default_value, 
-                                  help=help_text, choices=help_choices, nargs=nargs_value)
+                                  help=help_text, choices=help_choices)
 
     def error(self, message: str) -> None:
         """
@@ -152,14 +149,14 @@ class Configuration:
         arguments (dict): Dictionary with arguments from the configuration file with underscores.
     """
 
-    def __init__(self):       
+    def __init__(self, config_path: str = None):       
         """
         Initialize the Configuration object.
         """                      
         self.console = RichConsole('base')
 
         # path to the configuration file
-        self.set_configuration_path()
+        self.set_configuration_path(config_path)
 
         # in case config.yaml is not found, use default configuration
         # and by default write to file after all parsing
@@ -216,13 +213,18 @@ class Configuration:
         """        
         return argument.replace('_', '-') 
 
-    def set_configuration_path(self) -> None:
+    def set_configuration_path(self, config_path: str = None) -> None:
         """
         Set the path to the configuration file.
         If GCsnap is executed from a different directory, the path is updated.
         In that case, the configuration file is not likely to be not found
         and a default configuration is created.
         """        
+
+        if config_path is not None:
+            self.path = config_path
+            return
+
         # Locate the GCsnap package directory
         spec = importlib.util.find_spec('gcsnap')
         if spec is None or spec.origin is None:
@@ -232,9 +234,9 @@ class Configuration:
 
         # Check if GCsnap is executed from a different directory
         if os.path.samefile(package_dir, os.getcwd()):
-            self.path = package_dir
+            self.path = os.path.join(package_dir, 'config.yaml')
         else:
-            self.path = os.getcwd()
+            self.path = os.path.join(os.getcwd(), 'config.yaml')
         
     def read_configuration_yaml(self) -> None:  
         """
@@ -245,14 +247,14 @@ class Configuration:
         """         
         self.is_yaml_valid()
 
-        if not os.path.isfile(os.path.join(self.path,'config.yaml')):
+        if not os.path.isfile(self.path):
             self.console.print_warning('Configuration file config.yaml not found')
             self.arguments_hyphen = self.get_default_configuration()
             # set default write to True to write the default configuration to file
             self.default_write = True
             self.console.print_done('Default config.yaml created')
         else:
-            with open(os.path.join(self.path,'config.yaml'), 'r') as file:
+            with open(self.path, 'r') as file:
                 self.arguments_hyphen = yaml.load(file, Loader=yaml.FullLoader)
             self.console.print_done('Configuration file config.yaml loaded')
 
@@ -263,14 +265,14 @@ class Configuration:
         """
         yaml = YAML()
         try:
-            with open(os.path.join(self.path,'config.yaml'), 'r') as file:
+            with open(self.path, 'r') as file:
                 data = yaml.load(file)
                 if data is None:
                     raise Exception
         except FileNotFoundError:
             pass                
         except (ConstructorError, Exception):
-            os.remove(os.path.join(self.path,'config.yaml'))
+            os.remove(self.path)
             
     def write_configuration_yaml(self) -> None:
         """
@@ -283,7 +285,7 @@ class Configuration:
             'E.g. value: 1 to value: 2\n'
             '---------------------------------------\n')
         
-        with open(os.path.join(self.path,'config.yaml'), 'w') as file:
+        with open(self.path, 'w') as file:
             file.write('# ' + header_comment.replace('\n', '\n# ') + '\n')
             # 4 is the indentation space
             yaml = YAML()
@@ -331,9 +333,9 @@ class Configuration:
                 self.arguments[config_key]['value'] = getattr(args, arg)
             else:
                 self.targets = getattr(args, 'targets')
-
+        
         # handle arguments that require special treatment
-        self.handle_special_arguments()
+        #self.handle_special_arguments()
 
         # Write updated configuration to file
         if self.arguments['overwrite_config']['value'] or self.default_write:
@@ -380,13 +382,6 @@ class Configuration:
 
         self.arguments['clans_file']['value'] = clans_file
 
-        # cpu count
-        physical_cpus = psutil.cpu_count(logical=False)
-        if self.arguments['n_cpu']['value'] > physical_cpus:
-            self.console.print_warning('More CPU cores requested than available. --n-cpu set to {}'.format(
-                physical_cpus))
-            self.arguments['n_cpu']['value'] = physical_cpus
-
     def get_default_configuration(self) -> dict:
         """
         Define the default configuration dictionary if no config.yaml is found.
@@ -402,51 +397,50 @@ class Configuration:
                 "type": "str",
                 "help": "Name of output directory. If default, name of the input file."
             },
+            "n-nodes": {
+                "value": 1,
+                "type": "int",
+                "help": "Number of nodes to use (SLURM --nodes)."
+            },
+            "n-ranks-per-node": {
+                "value": 20,
+                "type": "int",
+                "help": "Number of MPI ranks per node to use (SLURM --ntasks-per-node)."
+            },
+            "n-cpus-per-rank": {
+                "value": 1,
+                "type": "int",
+                "help": "Number of CPUs per rank to use (SLURM --cpus-per-task) for MMseqs2. Total number of CPU cores per node needed = n-ranks-per-node * n-cpus-per-rank."   
+            },
+            "data-path": {
+                "value": "/storage/shared/msc/gcsnap_data/",
+                "type": "str",
+                "help": "Path to the data folder."
+            },
             "tmp-mmseqs-folder": {
-                "value": "None",
+                "value": None,
                 "type": "str",
                 "help": "The temporary folder to store mmseqs files. May be changed so that intermediary mmseqs files are saved somewhere else then the automatic 'out-label' directory."
             },
-            "assemblies-data-folder": {
-                "value": "None",
+            "mmseqs-executable-path": {
+                "value": None,
                 "type": "str",
-                "help": "Folder to store the downloaded assemblies. If not set, the assemblies will be stored in the data directory in the GCsnap repository folder."
-            },
-            "assemblies-data-update-age": {
-                "value": 14,
-                "type": "int",
-                "help": "Age in days after which the assembly summaries are downloaded again."
-            },
+                "help": "Path of MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment."
+            },            
             "collect-only": {
                 "value": False,
                 "type": "bool",
                 "help": "Boolean statement to make GCsnap collect genomic contexts only, without comparing them."
             },
-            "n-cpu": {
-                "value": 4,
-                "type": "int",
-                "help": "Number of cores to use."
-            },
             "clans-patterns": {
-                "value": "None",
+                "value": None,
                 "type": "str",
-                "help": "Patterns to identify the clusters to analyse. They will be used to select the individual clusters in the clans map to analyse.",
-                "nargs": "+"
+                "help": "Patterns to identify the clusters to analyse. They will be used to select the individual clusters in the clans map to analyse."
             },
             "clans-file": {
-                "value": "None",
+                "value": None,
                 "type": "str",
                 "help": "Used only for advanced interactive output representation (Clans file if the input is a clans file and -operon_cluster_advanced is set to True)."
-            },
-            "ncbi-user-email": {
-                "value": "None",
-                "type": "str",
-                "help": "Email address of the user. May be required to access NCBI databases and is not used for anything else."
-            },
-            "ncbi-api-key": {
-                "value": "None",
-                "type": "str",
-                "help": "The key for NCBI API, which allows for up to 10 queries per second to NCBI databases. Shall be obtained after obtaining an NCBI account."
             },
             "n-flanking5": {
                 "value": 4,
@@ -459,7 +453,7 @@ class Configuration:
                 "help": "Number of flanking sequences to take on 3' end."
             },
             "exclude-partial": {
-                "value": True,
+                "value": False,
                 "type": "bool",
                 "help": "Exclude partial operon/genomic_context blocks. If turned off, partial cases will still be ignored to get the most common genomic features."
             },
@@ -483,20 +477,15 @@ class Configuration:
                 "type": "int",
                 "help": "Number of iterations for all-against-all searches. Required to define protein families."
             },
-            "mmseqs-executable-path": {
-                "value": "None",
-                "type": "str",
-                "help": "Path of MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment."
-            },
             "get-pdb": {
                 "value": True,
                 "type": "bool",
                 "help": "Get PDB information for representatives of the families found."
             },
-            "get-functional-annotations": {
-                "value": True,
-                "type": "bool",
-                "help": "Find functional annotations for representatives of the families found."
+            "functional-annotation-files-path": {
+                "value": None,
+                "type": "str",
+                "help": "Path to the functional annotation files. If not specified, nothing annotated."
             },
             "operon-cluster-advanced": {
                 "value": False,
@@ -540,7 +529,7 @@ class Configuration:
                 "choices": ["phobius", "tmhmm", "uniprot"]
             },
             "annotation-TM-file": {
-                "value": "None",
+                "value": None,
                 "type": "str",
                 "help": "File with pre-computed transmembrane features. Only use when the targets correspond to a single project (no multiple fasta or text files)."
             },
@@ -572,7 +561,7 @@ class Configuration:
                 "help": "Minimum maximum co-occurrence of two genes to be connected in the graphs."
             },
             "in-tree": {
-                "value": "None",
+                "value": None,
                 "type": "str",
                 "help": "Input phylogenetic tree. Only use when the targets correspond to a single project (no multiple fasta or text files)."
             },
@@ -592,10 +581,5 @@ class Configuration:
                 "value": False,
                 "type": "bool",
                 "help": "Overwrite the argument value in config file with CLI value."
-            },
-            "timing": {
-                "value": False,
-                "type": "bool",
-                "help": "Measure time of all GCsnap steps and export it as csv file."
             }
         }

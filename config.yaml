@@ -4,53 +4,102 @@
 # ---------------------------------------
 # 
 out-label:
-    value: default
+    value: 
+        /scicore/home/schwede/pasqua0002/metaGCsnap/workflow/allSnap/tutorial/allSnap
     type: str
     help: Name of output directory. If default, name of the input file.
-tmp-mmseqs-folder:
-    value: None
+ncbi-user-email:
+    value: jacopo.pasqualini95@gmail.com   
     type: str
-    help: The temporary folder to store mmseqs files. May be changed so that intermediary
-        mmseqs files are saved somewhere else then the automatic 'out-label' directory.
-assemblies-data-folder:
-    value: None
+    help: your ncbi associated mail.
+ncbi-api-key:
+    value: 61f051c4414e5271a6f4268fbf4b7908a308
     type: str
-    help: Folder to store the downloaded assemblies. If not set, the assemblies will
-        be stored in the data directory in the GCsnap repository folder.
+    help: your ncbi api key.
+MGnify-path:
+    value: /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02
+    type: str
+    help: Path to the MGnify database folder. To get all the data, look at the ./supplementary folder
+MGnify-proxies:
+    value: {'http': 'http://squid.deploy.int:3128', 'https': 'http://squid.deploy.int:3128'}
+    type: dict
+    help: Proxies to use for MGnify database download.
+genome-classification:
+    value: binning
+    type: str
+    choices:
+      - binning
+      - taxonomy
+    help: Method to classify metagenomic contigs.
+kraken-path:
+    value: /scicore/home/schwede/pasqua0002/metaGCsnap/data/kraken/GTDB
+    type: str
+    help: Path to the Kraken database folder for taxonomic classification. To get all the data, look at the ./supplementary folder
 assemblies-data-update-age:
     value: 14
     type: int
     help: Age of the assembly files in days until they are downlaoded again.
-collect-only:
-    value: false
-    type: bool
-    help: Boolean statement to make GCsnap collect genomic contexts only, without
-        comparing them.
 n-cpu:
     value: 4
     type: int
     help: Number of cores to use.
+n-nodes:
+    value: 1
+    type: int
+    help: Number of nodes to use (SLURM --nodes).
+n-ranks-per-node:
+    value: 20
+    type: int
+    help: Number of MPI ranks per node to use (SLURM --ntasks-per-node).
+n-cpus-per-rank:
+    value: 1
+    type: int
+    help: Number of CPUs per rank to use (SLURM --cpus-per-task) for MMseqs2. 
+        Total number of CPU cores per node needed = n-ranks-per-node * 
+        n-cpus-per-rank.
+data-path:
+    value: /storage/shared/msc/gcsnap_data/
+    type: str
+    help: Path to the data folder.
+tmp-mmseqs-folder:
+    value:
+    type: str
+    help: The temporary folder to store mmseqs files. May be changed so that 
+        intermediary mmseqs files are saved somewhere else then the automatic 
+        'out-label' directory.
+tmp-folder:
+    value: ./tmp
+    type: str
+    help: The temporary folder to store mmseqs files. May be changed so that intermediary
+        mmseqs files are saved somewhere else then the automatic 'out-label' directory.
+foldseek-executable-path:
+    value:
+    type: str
+    help: Path of Foldseek executable (i.e., foldseek) if not installed in Conda environment.
+mmseqs-executable-path:
+    value: '/scicore/home/schwede/pasqua0002/miniconda3/envs/metaGCsnap/bin/mmseqs'
+    type: str
+    help: Path of MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment.
+sourmash-executable-path:
+    value: '/scicore/home/schwede/pasqua0002/miniconda3/envs/metaGCsnap/bin/sourmash'
+    type: str
+    help: Path of Sourmash executable (i.e., sourmash) if not installed in Conda environment.
+collect-only:
+    value: false
+    type: bool
+    help: Boolean statement to make GCsnap collect genomic contexts only, 
+        without comparing them.
 clans-patterns:
-    value: None
+    value:
     type: str
-    help: Patterns to identify the clusters to analyse. They will be used to select
-        the individual clusters in the clans map to analyse.
-    nargs: +
+    help: Patterns to identify the clusters to analyse. They will be used to 
+        select the individual clusters in the clans map to analyse.
 clans-file:
-    value: None
+    value:
     type: str
-    help: Used only for advanced interactive output representation (Clans file if
-        the input is a clans file and -operon_cluster_advanced is set to True).
-ncbi-user-email:
-    value: None
-    type: str
-    help: Email address of the user. May be required to access NCBI databases and
-        is not used for anything else.
-ncbi-api-key:
-    value: None
-    type: str
-    help: The key for NCBI API, which allows for up to 10 queries per second to NCBI
-        databases. Shall be obtained after obtaining an NCBI account.
+    help: Used only for advanced interactive output representation (Clans file 
+        if the input is a clans file and -operon_cluster_advanced is set to 
+        True).
 n-flanking5:
     value: 4
     type: int
@@ -60,65 +109,65 @@ n-flanking3:
     type: int
     help: Number of flanking sequences to take on 3' end.
 exclude-partial:
-    value: true
+    value: false
     type: bool
-    help: Exclude partial operon/genomic_context blocks. If turned off, partial cases
-        will still be ignored to get the most common genomic features.
+    help: Exclude partial operon/genomic_context blocks. If turned off, partial 
+        cases will still be ignored to get the most common genomic features.
 max-evalue:
     value: 0.001
     type: float
-    help: Max e-value at which two sequences are considered to be homologous. Required
-        to define protein families.
+    help: Max e-value at which two sequences are considered to be homologous. 
+        Required to define protein families.
 default-base:
     value: 10
     type: int
-    help: Artificial distance value for two sequences that do not match with an E-value
-        better than --max-evalue.
+    help: Artificial distance value for two sequences that do not match with an 
+        E-value better than --max-evalue.
 min-coverage:
     value: 0.7
     type: float
-    help: Minimum coverage of target and subject a match needs to be so that two sequences
-        are considered to be homologous. Required to define protein families.
+    help: Minimum coverage of target and subject a match needs to be so that two
+        sequences are considered to be homologous. Required to define protein 
+        families.
 num-iterations:
     value: 1
     type: int
-    help: Number of iterations for all-against-all searches. Required to define protein
-        families.
-mmseqs-executable-path:
-    value: None
-    type: str
-    help: Path of MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment.
+    help: Number of iterations for all-against-all searches. Required to define 
+        protein families.
 get-pdb:
     value: true
     type: bool
     help: Get PDB information for representatives of the families found.
-get-functional-annotations:
-    value: true
-    type: bool
-    help: Find functional annotations for representatives of the families found.
+functional-annotation-files-path:
+    value:
+    type: str
+    help: Path to the functional annotation files. If not specified, nothing 
+        annotated.
 operon-cluster-advanced:
     value: false
     type: bool
-    help: Boolean statement to use the operon clustering advanced mode using PacMAP.
+    help: Boolean statement to use the operon clustering advanced mode using 
+        PacMAP.
 max-family-freq:
     value: 20
     type: int
-    help: Maximum frequency of a family in the set of genomic contexts found to be
-        considered for advanced operon clustering.
+    help: Maximum frequency of a family in the set of genomic contexts found to 
+        be considered for advanced operon clustering.
 min-family-freq:
     value: 2
     type: int
-    help: Minimum frequency of a family in the set of genomic contexts found to be
-        considered for advanced operon clustering.
+    help: Minimum frequency of a family in the set of genomic contexts found to 
+        be considered for advanced operon clustering.
 min-family-freq-accross-contexts:
     value: 30
     type: int
-    help: Minimum frequency of a family in a conserved genomic context type to be
-        considered as a member.
+    help: Minimum frequency of a family in a conserved genomic context type to 
+        be considered as a member.
 n-max-operons:
     value: 30
     type: int
-    help: Maximum number of top most populated operon/genomic_context block types.
+    help: Maximum number of top most populated operon/genomic_context block 
+        types.
 get-taxonomy:
     value: true
     type: bool
@@ -136,10 +185,11 @@ annotation-TM-mode:
       - tmhmm
       - uniprot
 annotation-TM-file:
-    value: None
+    value:
     type: str
-    help: File with pre-computed transmembrane features. Only use when the targets
-        correspond to a single project (no multiple fasta or text files).
+    help: File with pre-computed transmembrane features. Only use when the 
+        targets correspond to a single project (no multiple fasta or text 
+        files).
 interactive:
     value: true
     type: bool
@@ -147,7 +197,8 @@ interactive:
 genomic-context-cmap:
     value: Spectral
     type: str
-    help: Color map (as of matplotlib) to assign colors to and plot the syntenic blocks.
+    help: Color map (as of matplotlib) to assign colors to and plot the syntenic
+        blocks.
 gc-legend-mode:
     value: species
     type: str
@@ -166,12 +217,13 @@ out-format:
 min-coocc:
     value: 0.3
     type: float
-    help: Minimum maximum co-occurrence of two genes to be connected in the graphs.
+    help: Minimum maximum co-occurrence of two genes to be connected in the 
+        graphs.
 in-tree:
-    value: None
+    value:
     type: str
-    help: Input phylogenetic tree. Only use when the targets correspond to a single
-        project (no multiple fasta or text files).
+    help: Input phylogenetic tree. Only use when the targets correspond to a 
+        single project (no multiple fasta or text files).
 in-tree-format:
     value: newick
     type: str
@@ -197,7 +249,3 @@ overwrite-config:
     value: false
     type: bool
     help: Overwrite the argument value in config file with CLI value.
-timing:
-    value: false
-    type: bool
-    help: Measure time of all GCsnap steps and export it as csv file.

@@ -106,7 +106,6 @@ class Target():
             if line.startswith('>'):
                 is_fasta = True
                 curr_target = line.split(' ')[0].split(':')[0].split('|')[0].split('_#')[0].replace('>','').strip()
-
             elif not is_fasta:
                 curr_target = line.strip().split()[0]
 

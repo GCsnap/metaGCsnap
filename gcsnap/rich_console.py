@@ -85,11 +85,9 @@ class RichConsole():
         """        
         color = self.color_blue
         self.print_line(color)
-        self.console.print(Text('GCsnap', style=f'bold {color}'))
-        self.console.print(Text('GCsnap is a python-based, local tool that generates ' + 
-                        'interactive snapshots of conserved protein-coding genomic contexts.',
-                        style=color))
-        self.console.print(Text('Thanks for using it!  💙', style=color))        
+        self.console.print(Text('metaGCsnap', style=f'bold {color}'))
+        self.console.print(Text('metaGCsnap is a helps you explore and analyze metagenomic data from a protein-centric perspective.', style=color))
+        self.console.print(Text('Thanks for using it! 🇨🇭 ❤️🤍❤️ 🇨🇭', style=color))        
         self.print_line(color)  
         self.logger.info('GCsnap started')
 

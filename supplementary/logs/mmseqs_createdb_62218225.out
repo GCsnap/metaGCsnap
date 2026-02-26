@@ -1,0 +1,28 @@
+===== JOB INFO =====
+Input FASTA    : /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02/mgy_clusters.fa.gz
+Output root    : /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02
+DB prefix      : /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02/mmseqsDBs/mgyc/DB
+Tmp directory  : /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02/tmp
+Threads        : 32
+====================
+
+Activated mamba env: metaGCsnap
+
+Running: mmseqs createdb ...
+createdb /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02/mgy_clusters.fa.gz /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02/mmseqsDBs/mgyc/DB /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02/tmp --threads 32 --createdb-mode 1 
+
+MMseqs Version:                    	18.8cc5c
+Database type                      	0
+Shuffle input database             	true
+Createdb mode                      	1
+Write lookup file                  	1
+Offset of numeric ids              	0
+Threads                            	32
+Compressed                         	0
+Mask residues                      	1
+Mask residues probability          	0.9
+Mask lower case residues           	0
+Mask lower letter repeating N times	0
+Use GPU                            	0
+Verbosity                          	3
+
