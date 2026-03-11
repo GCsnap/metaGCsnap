@@ -8,7 +8,7 @@ from Bio import SeqIO
 from pathlib import Path 
 from gcsnap.rich_console import RichConsole
 from gcsnap.configuration import Configuration
-from providers.MGnify.helpers import MMSeqsParams
+from gcsnap.consts import MMSeqsParams
 
 class GenomicContext:
     """ 
@@ -263,16 +263,38 @@ class GenomicContext:
         output_fasta_path = os.path.join(self.out_label,'genomic_context','sequences', "representatives.fasta")
 
         with open(families.fasta_file, "r") as input_handle:
-            fasta_records = SeqIO.to_dict( SeqIO.parse(input_handle, "fasta"), 
-                                           key_function=lambda record: record.id.split('|')[0])
+            # Build dict manually so duplicated keys after split('|')[0] do not crash.
+            fasta_records = {}
+            duplicated_fasta_keys = set()
+            for record in SeqIO.parse(input_handle, "fasta"):
+                key = record.id.split('|')[0]
+                if key in fasta_records:
+                    duplicated_fasta_keys.add(key)
+                    continue  # keep first occurrence
+                fasta_records[key] = record
+
+            if duplicated_fasta_keys:
+                self.console.print_warning(
+                    'Found {} duplicated FASTA IDs (after split("|")[0]); keeping first occurrence.'.format(
+                        len(duplicated_fasta_keys)
+                    )
+                )
 
             with open(output_fasta_path, "wt") as output_handle:
-                # family_id is k, record_id is v
+
+                # family_id is k, record_id is v; write each record only once
+                families_by_record = {}
                 for family_id, record_id in representatives.items():
-                    
+                    families_by_record.setdefault(record_id, []).append(str(family_id))
+
+                for record_id, family_ids in families_by_record.items():
                     record = fasta_records.get(record_id)
-                    record.description = record.description + f' family:{family_id}'
-                    SeqIO.write(record, output_handle, "fasta")
+                    if record is None:
+                        continue
+
+                    dedup_record = copy.deepcopy(record)
+                    dedup_record.description = dedup_record.description + " family:{}".format(",".join(family_ids))
+                    SeqIO.write(dedup_record, output_handle, "fasta")
 
     def create_and_write_metagenomic_bins_summary(self) -> None:
         """
