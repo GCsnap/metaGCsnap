@@ -1,0 +1,10 @@
+name: gcsnap
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - jsonapi-client
+  - pip:
+    - pypdl

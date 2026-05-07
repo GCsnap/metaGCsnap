@@ -17,7 +17,7 @@ class SequenceDBHandler:
         cursor.execute('DROP TABLE IF EXISTS sequences')
         cursor.execute('''
             CREATE TABLE sequences (
-                ncbi_code TEXT PRIMARY KEY,
+                seq_code TEXT PRIMARY KEY,
                 sequence TEXT
             )
         ''')
@@ -58,18 +58,18 @@ class SequenceDBHandler:
     def batch_insert_sequences(self, sequences: list[tuple[str,str]]) -> None:
         conn = sqlite3.connect(self.db)
         cursor = conn.cursor()          
-        cursor.executemany('INSERT OR REPLACE INTO sequences (ncbi_code, sequence) VALUES (?, ?)', sequences)
+        cursor.executemany('INSERT OR REPLACE INTO sequences (seq_code, sequence) VALUES (?, ?)', sequences)
         conn.commit()
         conn.close()         
 
     def batch_update_sequences(self, sequences: list[tuple[str,str]]) -> None:
-        # we need (new_sequence, ncbi_code)   
+        # we need (new_sequence, seq_code)   
         updates = [(sequence[1], sequence[0]) for sequence in sequences]        
         conn = sqlite3.connect(self.db)
         cursor = conn.cursor()    
         # Disable journaling and set performance-related settings in the same connection
         # Perform the bulk update using executemany
-        sql = 'UPDATE sequences SET sequence = ? WHERE ncbi_code = ?'
+        sql = 'UPDATE sequences SET sequence = ? WHERE seq_code = ?'
         cursor.executemany(sql, updates)        
         conn.commit()
         conn.close()         
@@ -90,7 +90,17 @@ class SequenceDBHandler:
         for file_path in file_paths:
             # accession taken from file name: GCF_000247695.1_HetGla_female_1.0_protein.faa.gz
             # all but the last are the accession
-            assembly_accession = '_'.join(os.path.basename(file_path).split('_')[:-1])
+            basename = os.path.basename(file_path)
+            for suffix in ('.faa.gz', '.faa'):
+                if basename.endswith(suffix):
+                    basename = basename[:-len(suffix)]
+                    break
+            # strip trailing _protein or _genomic descriptor if present (NCBI-style names)
+            for desc in ('_protein', '_genomic'):
+                if basename.endswith(desc):
+                    basename = basename[:-len(desc)]
+                    break
+            assembly_accession = basename
 
             # read the file in once
             if file_path.endswith('.gz'):
@@ -115,10 +125,10 @@ class SequenceDBHandler:
                 info_split = entry_split[0].split('[') 
                 # orgname is same for the assembly, put it into assembly table
                 #orgname = info_split[-1].replace(']','')
-                ncbi_code = info_split[0].split(' ')[0]
+                seq_code = info_split[0].split(' ')[0]
                 
-                sequence_list.append((ncbi_code, sequence))
-                mapping_list.append((ncbi_code, assembly_accession))   
+                sequence_list.append((seq_code, sequence))
+                mapping_list.append((seq_code, assembly_accession))   
         
         # return what is needed from the .faa file
         return (sequence_list, mapping_list)      
@@ -132,7 +142,7 @@ class SequenceDBHandler:
         # SQLite does not support parallel write, so just batches to reduce write calls          
         return self.parse_sequences(file_paths) 
                     
-    def select(self, ncbi_codes: list[str], return_fields: list[str] = None) -> list[tuple]:
+    def select(self, seq_codes: list[str], return_fields: list[str] = None) -> list[tuple]:
         # combine query
         
         # which fields to return
@@ -141,14 +151,14 @@ class SequenceDBHandler:
         else:
             select_fields = ', '.join(return_fields)
 
-        # which records based on ncbi_codes
-        records = f"({','.join(['?']*len(ncbi_codes))})" # (?,?,?,?) for each entry in ncbi_code       
-        query = 'SELECT {} FROM sequences WHERE ncbi_code IN {}'.format(select_fields, records)
+        # which records based on seq_codes
+        records = f"({','.join(['?']*len(seq_codes))})" # (?,?,?,?) for each entry in seq_code       
+        query = 'SELECT {} FROM sequences WHERE seq_code IN {}'.format(select_fields, records)
         
         # execute query
         conn = sqlite3.connect(self.db)
         cursor = conn.cursor()
-        cursor.execute(query, ncbi_codes)
+        cursor.execute(query, seq_codes)
         result = cursor.fetchall()  # fetchall() gets all, fetchone() just the next in the result list
         conn.close()  
         
@@ -163,9 +173,9 @@ class SequenceDBHandler:
         
         return result
     
-    def select_as_dict(self, ncbi_codes: list[str], return_fields: list[str] = None) -> dict:
+    def select_as_dict(self, seq_codes: list[str], return_fields: list[str] = None) -> dict:
         # get the result as a dictionary
-        result = self.select(ncbi_codes, return_fields)
+        result = self.select(seq_codes, return_fields)
         return {record[0]: record[1] for record in result}
 
     def select_number_of_entries(self) -> int:

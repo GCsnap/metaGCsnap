@@ -30,11 +30,7 @@ class Maker:
         self.console = console
         
         self.gatherer = None
-        # Filter targets specific to MGnify (containing 'MGYP')
-        self.target_list = [
-            t for t in targets.get_targets_dict().get(self.out_label, []) 
-            if 'MGYP' in t
-        ]
+        self.target_list = targets.get_provider_targets('mgnify')
         
         # Setup Directories
         self.mgnify_dir = os.path.join(self.out_label, 'providers', 'MGnify')

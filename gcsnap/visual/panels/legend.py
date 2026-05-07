@@ -95,7 +95,7 @@ def legend_panel(
         )
 
     # Invisible patches for hover / tap
-    fig.patches(
+    hover_renderer = fig.patches(
         'xs', 'ys',
         fill_color=None, line_color=None, line_width=0,
         source=src,
@@ -111,8 +111,8 @@ def legend_panel(
         ('Family',          '@family_name (@family_code)'),
         ('Structural model','@found_models'),
     ]
-    fig.add_tools(HoverTool(tooltips=tooltips))
-    fig.add_tools(TapTool(callback=OpenURL(url='@model_links')))
+    fig.add_tools(HoverTool(tooltips=tooltips, renderers=[hover_renderer]))
+    fig.add_tools(TapTool(callback=OpenURL(url='@model_links'), renderers=[hover_renderer]))
 
     fig.grid.visible = False
     fig.outline_line_width = 0

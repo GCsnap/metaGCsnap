@@ -21,13 +21,46 @@ class Target():
 
         Args:
             configuration (Configuration): The Configuration object containing the arguments.
-        """        
+        """
         self.arguments = configuration.arguments
         self.targets = configuration.targets
         self.console = RichConsole('base')
 
         # empty dictionary to store the targets
+        # shape: {out_label: {provider: [ids]}}
         self.targets_dict = {}
+        self.all_ids = []
+
+    # ── per-provider API ──────────────────────────────────────────────────────
+
+    def add_provider_targets(self, out_label: str, provider: str, ids: list) -> None:
+        """
+        Register a list of target IDs for a specific provider.
+
+        Args:
+            out_label (str): The run label (top-level key).
+            provider (str): Provider name, e.g. ``'ncbi'``, ``'mgnify'``, ``'local'``.
+            ids (list): List of target ID strings.
+        """
+        if out_label not in self.targets_dict:
+            self.targets_dict[out_label] = {}
+        self.targets_dict[out_label][provider] = ids
+        self.all_ids.extend(ids)
+
+    def get_provider_targets(self, provider: str) -> list:
+        """
+        Return the target IDs registered for *provider* under the current
+        ``out_label``.
+
+        Args:
+            provider (str): Provider name, e.g. ``'ncbi'``.
+
+        Returns:
+            list: Target IDs, or an empty list when the provider was not
+                  registered.
+        """
+        out_label = self.arguments['out_label']['value']
+        return self.targets_dict.get(out_label, {}).get(provider, [])
 
     def run(self) -> None:
         """

@@ -18,58 +18,59 @@ Thank you for using and showing interest on GCsnap!
 
 ## Dependencies
 
-GCsnap2.0 Desktop was written in Python 3.11. It was tested on Python 3.11. It requires mostly core Python modules and some external packages: 
-  - Biopython
-  - Bokeh
-  - Matplotlib
-  - Networkx 
-  - PaCMAP
-  - Scikit-learn
-  - Pandas
-  - Rich
-  - Urllib3 and Requests
-  - Jinja2
+All dependencies are managed via conda and the environment files in the `envs/` folder.
+The base environment covers the core packages (Python 3.11, MMseqs2, Biopython, Bokeh,
+Matplotlib, Networkx, PaCMAP, Scikit-learn, Pandas, Rich, Requests, and more).
+Each data provider adds its own extra packages on top.
 
-For detailed requirements including working versions, check ```pyproject.toml```.
-
-Additionally, GCsnap relies on a local installation of MMseqs or for Windows users, the static binary. See below for installation details.
 ## Installation
 
-### Installing from Source
+GCsnap uses a single script, `install_providers.sh`, to create the conda environment,
+install the right dependencies, and register the `GCsnap` CLI — all in one step.
+**conda must be installed before running the script.**
 
-Clone the repository with git, create a Conda environment and install:
+### Step 1 — base install (no data providers)
 
-**Linux/MacOS**
-```
-# To download
-git clone https://github.com/RetoKrummenacher/GCsnap
-cd GCsnap
+```bash
+git clone <repository-url>
+cd <repository-folder>
 
-# Change to new developpment branch 
-git checkout gcsnap2desktop
-
-# To install
-conda create -n GCsnap -c conda-forge -c bioconda gcc=14.1 python=3.11 mmseqs2
-conda activate GCsnap
-pip install .
+bash install_providers.sh --base
+conda activate gcsnap
 ```
 
-**Windows**  
-There is no MMseqs2 installation candidate, just create Conda environment without mmseqs2 and get the static binary executable from here: https://mmseqs.com/latest/. Download, extract and store locally.
-When running GCsnap, pass the path to the executable (i.e., mmseqs.bat) via the ```--mmseqs-executable-path``` argument.
-```
-# To download
-git clone https://github.com/RetoKrummenacher/GCsnap
-cd GCsnap
+This creates the `gcsnap` conda environment with all core dependencies and registers
+the `GCsnap` command. No data provider is available yet.
 
-# Change to new developpment branch 
-git checkout gcsnap2desktop
+### Step 2 — install a data provider
 
-# To install
-conda create -n GCsnap -c conda-forge -c bioconda gcc=14.1 python=3.11
-conda activate GCsnap
-pip install .
+Run the script again with the flag for the provider(s) you need:
+
+```bash
+bash install_providers.sh --ncbi      # NCBI / UniProt provider
+bash install_providers.sh --mgnify    # MGnify metagenomics provider
+bash install_providers.sh --local     # local database provider
+bash install_providers.sh --complete  # all three providers
 ```
+
+Providers can be added at any time after the base install; the base environment is
+preserved and only the provider-specific packages are added.
+
+### Step 3 — configure provider paths
+
+Open `config.yaml` and fill in the paths required by the providers you installed:
+
+| Provider | Keys to set |
+|----------|-------------|
+| NCBI     | `ncbi-user-email`, `ncbi-api-key` |
+| MGnify   | `MGnify-path`, `kraken-path` |
+| local    | `gff-path`, `db-path` |
+
+### Windows note
+
+MMseqs2 has no Windows conda package. Install without `--local` and download the static
+binary from https://mmseqs.com/latest/. Pass the path via `--mmseqs-executable-path`
+when running GCsnap.
 
 
 ## Allowed inputs

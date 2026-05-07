@@ -31,11 +31,7 @@ class Maker:
         self.console = console
         self.dataset = None
         self.gatherer = None
-        # Filter targets specific to NCBI (containing 'NCBI')
-        self.target_list = [
-            t for t in targets.get_targets_dict().get(self.out_label, []) 
-            if not 'MGYP' in t
-        ]
+        self.target_list = targets.get_provider_targets('ncbi')
         
         # Setup ncbi
         self.ncbi_dir = os.path.join(self.out_label, 'providers', 'ncbi')

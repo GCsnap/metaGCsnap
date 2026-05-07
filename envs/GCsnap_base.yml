@@ -1,0 +1,30 @@
+name: gcsnap
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - python=3.11
+  # --- core scientific stack ---
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - networkx
+  # --- bioinformatics ---
+  - biopython
+  - mmseqs2
+  - sourmash
+  # --- visualisation ---
+  - bokeh
+  - pacmap
+  # --- web / IO ---
+  - requests
+  - tqdm
+  - rich
+  # --- packaging ---
+  - pip
+  - setuptools
+  - wheel

@@ -320,18 +320,13 @@ class Configuration:
             self.console.print_help(self.parser)
             exit(0)
 
-        # Ensure --targets argument is present
-        if args.targets is None:
-            self.console.print_error('The following argument is required: --targets')
-            self.console.stop_execution()
-
         # Update self.arguments dictionary with parsed values
         for arg in vars(args):
             # in arguments, we use underscores, in parser hyphens
-            config_key = self.hyphen_to_underscore(arg)           
+            config_key = self.hyphen_to_underscore(arg)
             if config_key in self.arguments:
                 self.arguments[config_key]['value'] = getattr(args, arg)
-            else:
+            elif arg == 'targets':
                 self.targets = getattr(args, 'targets')
         
         # handle arguments that require special treatment
@@ -345,22 +340,28 @@ class Configuration:
         """
         Create the argument parser with usage and epilog messages.
         """        
-        usage = 'GCsnap --targets <targets> [Optional arguments]'
-        epilog = 'Example: GCsnap --targets PHOL_ECOLI A0A0U4VKN7_9PSED'
-        
+        usage = (
+            'GCsnap --ncbi-targets <file> [--mgnify-targets <file>] '
+            '[--local-targets <file>] [Optional arguments]'
+        )
+        epilog = (
+            'Example: GCsnap --ncbi-targets ncbi_ids.txt --mgnify-targets mgnify_ids.txt\n'
+            'At least one provider flag is required.\n'
+            'Legacy positional targets (--targets) are still accepted for '
+            'notebook / scripting use.'
+        )
+
         self.parser = CustomArgumentParser(usage=usage, epilog=epilog)
 
-        # help argument, as we overwrote the default --help with rich printing
-        self.parser.add_argument('-h', '--help', action='store_true', 
+        # help argument (replaces default --help with rich printing)
+        self.parser.add_argument('-h', '--help', action='store_true',
                                  help='Show this help message and exit')
-        # consequences, we can't use required=True but check it in parse_arguments()
 
-        # required arguments
-        self.parser.add_argument('-t', '--targets', nargs='+', type=str, 
-                                 help='List of input targets. Can be a list of fasta files,' + 
-                                 'a list of text files encompassing a list of protein sequence identifiers,' + 
-                                 'a list of protein sequence identifiers, or a mix of them')
-        
+        # legacy targets argument – kept for notebook / Target() compatibility
+        self.parser.add_argument('-t', '--targets', nargs='+', type=str,
+                                 help='(Legacy) List of input targets for use with the '
+                                      'Target class or direct scripting.')
+
         # Add arguments from YAML
         self.parser.add_argument_from_config(self.arguments_hyphen)
 
@@ -397,25 +398,30 @@ class Configuration:
                 "type": "str",
                 "help": "Name of output directory. If default, name of the input file."
             },
-            "n-nodes": {
-                "value": 1,
-                "type": "int",
-                "help": "Number of nodes to use (SLURM --nodes)."
-            },
-            "n-ranks-per-node": {
-                "value": 20,
-                "type": "int",
-                "help": "Number of MPI ranks per node to use (SLURM --ntasks-per-node)."
-            },
-            "n-cpus-per-rank": {
-                "value": 1,
-                "type": "int",
-                "help": "Number of CPUs per rank to use (SLURM --cpus-per-task) for MMseqs2. Total number of CPU cores per node needed = n-ranks-per-node * n-cpus-per-rank."   
-            },
-            "data-path": {
-                "value": "/storage/shared/msc/gcsnap_data/",
+            "ncbi-targets": {
+                "value": None,
                 "type": "str",
-                "help": "Path to the data folder."
+                "help": "Path to a plain-text file of NCBI / UniProt target IDs (one per line)."
+            },
+            "mgnify-targets": {
+                "value": None,
+                "type": "str",
+                "help": "Path to a plain-text file of MGnify (MGYP…) target IDs (one per line)."
+            },
+            "local-targets": {
+                "value": None,
+                "type": "str",
+                "help": "Path to a plain-text file of local-database target IDs (one per line)."
+            },
+            "gff-path": {
+                "value": None,
+                "type": "str",
+                "help": "Path to the flat folder containing all .gff.gz annotation files (used at pipeline runtime)."
+            },
+            "db-path": {
+                "value": None,
+                "type": "str",
+                "help": "Path to the GCsnap database folder containing assemblies.db, sequences.db and the summary files."
             },
             "tmp-mmseqs-folder": {
                 "value": None,
@@ -431,16 +437,6 @@ class Configuration:
                 "value": False,
                 "type": "bool",
                 "help": "Boolean statement to make GCsnap collect genomic contexts only, without comparing them."
-            },
-            "clans-patterns": {
-                "value": None,
-                "type": "str",
-                "help": "Patterns to identify the clusters to analyse. They will be used to select the individual clusters in the clans map to analyse."
-            },
-            "clans-file": {
-                "value": None,
-                "type": "str",
-                "help": "Used only for advanced interactive output representation (Clans file if the input is a clans file and -operon_cluster_advanced is set to True)."
             },
             "n-flanking5": {
                 "value": 4,
@@ -477,16 +473,6 @@ class Configuration:
                 "type": "int",
                 "help": "Number of iterations for all-against-all searches. Required to define protein families."
             },
-            "get-pdb": {
-                "value": True,
-                "type": "bool",
-                "help": "Get PDB information for representatives of the families found."
-            },
-            "functional-annotation-files-path": {
-                "value": None,
-                "type": "str",
-                "help": "Path to the functional annotation files. If not specified, nothing annotated."
-            },
             "operon-cluster-advanced": {
                 "value": False,
                 "type": "bool",
@@ -511,27 +497,6 @@ class Configuration:
                 "value": 30,
                 "type": "int",
                 "help": "Maximum number of top most populated operon/genomic_context block types."
-            },
-            "get-taxonomy": {
-                "value": True,
-                "type": "bool",
-                "help": "Boolean statement to get and map taxonomy information."
-            },
-            "annotate-TM": {
-                "value": False,
-                "type": "bool",
-                "help": "Boolean statement to find sequence features in the flanking genes."
-            },
-            "annotation-TM-mode": {
-                "value": "uniprot",
-                "type": "str",
-                "help": "Method to use to find transmembrane segments.",
-                "choices": ["phobius", "tmhmm", "uniprot"]
-            },
-            "annotation-TM-file": {
-                "value": None,
-                "type": "str",
-                "help": "File with pre-computed transmembrane features. Only use when the targets correspond to a single project (no multiple fasta or text files)."
             },
             "interactive": {
                 "value": True,
@@ -559,17 +524,6 @@ class Configuration:
                 "value": 0.30,
                 "type": "float",
                 "help": "Minimum maximum co-occurrence of two genes to be connected in the graphs."
-            },
-            "in-tree": {
-                "value": None,
-                "type": "str",
-                "help": "Input phylogenetic tree. Only use when the targets correspond to a single project (no multiple fasta or text files)."
-            },
-            "in-tree-format": {
-                "value": "newick",
-                "type": "str",
-                "help": "Format of the input phylogenetic tree.",
-                "choices": ["newick", "nexus", "phyloxml", "phyloxml-strict", "phyloxml-extended", "phyloxml-complete"]
             },
             "sort-mode": {
                 "value": "taxonomy",

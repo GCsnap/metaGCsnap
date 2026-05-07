@@ -1,3 +1,30 @@
+# Private config (credentials, local paths — do not commit)
+config_private.yaml
+config_private_A.yaml
+
+# Dead code / archived files
+gcsnap/__main__old.py
+gcsnap/supplementary/olds/
+old/
+
+# Scratch / generated files
+tree.txt
+*.log
+pending_fixes.md
+
+# Claude tooling
+.claude/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Tutorial — include only tutorial.ipynb and data/
+tutorial/*
+!tutorial/tutorial.ipynb
+!tutorial/data/
+!tutorial/data/**
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

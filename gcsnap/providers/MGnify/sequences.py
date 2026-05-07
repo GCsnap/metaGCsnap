@@ -27,6 +27,37 @@ def extract_target_sequences(input_file: str, targets: list) -> dict:
         return {}
     return result
 
+def extract_dna_sequences(dna_file: str, genomic_region: str, starts: list, ends: list) -> dict:
+    """
+    Read the contig DNA FASTA file (gzipped) and extract the genomic context and individual
+    gene sequences using 1-based genomic coordinates.
+
+    Args:
+        dna_file (str): Path to the gzipped FASTA file containing the contig DNA.
+        genomic_region (str): Contig record ID to locate within the FASTA file.
+        starts (list): 1-based start positions of the flanking genes.
+        ends (list): 1-based end positions of the flanking genes.
+
+    Returns:
+        dict: {'context': str, 'features': [str, ...]}
+              'context' is the full genomic context spanning all flanking genes.
+              'features' is a list of individual gene DNA sequences in the same order as starts/ends.
+    """
+    try:
+        with gzip.open(dna_file, "rt") as handle:
+            for record in SeqIO.parse(handle, "fasta"):
+                if record.id == genomic_region:
+                    contig_seq = record.seq
+                    gc_start = min(starts) - 1  # convert 1-based to 0-based
+                    gc_end   = max(ends)         # 1-based inclusive end = 0-based exclusive end
+                    context  = str(contig_seq[gc_start:gc_end])
+                    features = [str(contig_seq[s - 1 : e]) for s, e in zip(starts, ends)]
+                    return {'context': context, 'features': features}
+    except FileNotFoundError:
+        pass
+    return {'context': '', 'features': []}
+
+
 class Sequences:
     """ 
     Methods and attributes to get the sequences for the flanking genes of the target genes.
@@ -55,6 +86,7 @@ class Sequences:
         self.gc = gc
 
         self.mgyp_metadata = dataset.mgyp_metadata
+        self.contig_file = dataset.contig_file
         self.contig_proteins_file = dataset.contig_proteins_file
 
         self.console = RichConsole()
@@ -77,7 +109,8 @@ class Sequences:
         """        
         # Find sequnces for all cds codes
         #print(self.gc.get_all_cds_codes())
-        self.find_sequences(self.gc.get_all_cds_codes())
+        self.find_protein_sequences(self.gc.get_all_cds_codes())
+        self.find_genomic_sequences()
 
         # Prepare a list of tuples (target, dict_for_target)
         # here each process gets one target: {} combination
@@ -104,8 +137,15 @@ class Sequences:
         """        
         target, content_dict = args
         # update flanking genes with sequence
-        sequences = [self.get_sequence(cds_code) for cds_code in content_dict['flanking_genes']['cds_codes']]
-        content_dict['flanking_genes']['sequences'] = sequences
+
+        dna_sequences = [self.get_sequence(cds_code,'genomic') for cds_code in content_dict['flanking_genes']['cds_codes']]
+        content_dict['flanking_genes']['dna_sequences'] = dna_sequences
+
+        protein_sequences = [self.get_sequence(cds_code,'proteins') for cds_code in content_dict['flanking_genes']['cds_codes']]
+        content_dict['flanking_genes']['protein_sequences'] = protein_sequences
+
+        # add genomic context sequence to assembly metadata
+        content_dict['context_sequence'] = self.context_sequences.get(target, '')
 
         # add species and taxid for target_cds code (first one in the list)
         target_cds = content_dict['assembly_metadata']['target_cds']
@@ -116,7 +156,7 @@ class Sequences:
 
         return {target: content_dict}
 
-    def find_sequences(self, cds_codes: list) -> None:
+    def find_protein_sequences(self, cds_codes: list) -> None:
         """
         Find sequences for all flanking genes.
         Assign to each contig its taxonomy. For each genomic context, open the mgyc file and get the sequences. Assign taxonomy like the contig.
@@ -125,26 +165,46 @@ class Sequences:
             cds_codes (list): The list of cds codes to find sequences for.
         """    
 
-        def assign_taxon(row):
-
-            try: return {'taxid':row['taxon_id'],'rank':row['rank'],'taxon_name':row['taxon_name'] }
-            except KeyError: return {'taxid':'1','rank':'root','taxon_name':row['contig']}
-
-        #self.contig_taxonomy = {row['ERZ_contig']: assign_taxon(row) for _, row in self.mgyp_metadata.iterrows() if row['ERZ_cds_id'] != 'NA'}
-        
-        self.sequences = {}
+        self.protein_sequences = {}
 
         for v in self.gc.get_syntenies().values():
 
             mgyc = v["assembly_metadata"]['contig']
             target_proteins = v["flanking_genes"]["cds_codes"]
-            contig_file = self.contig_proteins_file[mgyc]
+            contig_proteins_file = v["assembly_metadata"]["protein_file"]
 
-            seqs=extract_target_sequences(contig_file,target_proteins)
+            seqs=extract_target_sequences(contig_proteins_file,target_proteins)
 
-            self.sequences.update(seqs)
+            self.protein_sequences.update(seqs)
 
-    def get_sequence(self, cds_code: str) -> str:
+    def find_genomic_sequences(self) -> None:
+        """
+        Extract DNA sequences for all flanking genes and their genomic contexts.
+        For each synteny entry, open the contig DNA file and slice out the context region
+        and each individual gene using the stored 1-based genomic coordinates.
+
+        Sets:
+            self.genomic_sequences (dict): {cds_code: {'seq': dna_str}} for each flanking gene.
+            self.context_sequences (dict): {target: dna_str} for each synteny context.
+        """
+        self.genomic_sequences = {}
+        self.context_sequences = {}
+
+        for k, v in self.gc.get_syntenies().items():
+            dna_file       = v["assembly_metadata"]["dna_file"]
+            genomic_region = v["assembly_metadata"]["genomic_region"]
+            cds_codes      = v["flanking_genes"]["cds_codes"]
+            starts         = v["flanking_genes"]["starts"]
+            ends           = v["flanking_genes"]["ends"]
+
+            seqs = extract_dna_sequences(dna_file, genomic_region, starts, ends)
+
+            for cds_code, dna_seq in zip(cds_codes, seqs['features']):
+                self.genomic_sequences[cds_code] = {'seq': dna_seq}
+
+            self.context_sequences[k] = seqs['context']
+
+    def get_sequence(self, cds_code: str, alphabet: str ) -> str:
         """
         Get the sequence for a cds code. 
         If the sequence is not found, a fake sequence is returned.
@@ -155,7 +215,11 @@ class Sequences:
         Returns:
             str: The sequence for the cds code.
         """        
-        entry = self.sequences.get(cds_code, {})        
+
+        if alphabet == 'genomic':
+            entry = self.genomic_sequences.get(cds_code, {})        
+        if alphabet == 'proteins':
+            entry = self.protein_sequences.get(cds_code, {})        
         return entry.get('seq', 'FAKESEQUENCEFAKESEQUENCEFAKESEQUENCEFAKESEQUENCE')
 
     
@@ -169,6 +233,6 @@ class Sequences:
         Returns:
             str: The species name for the cds code.
         """        
-        print(f"Looking up taxonomy for cds_code: {cds_code}")
-        entry = self.sequences.get(cds_code, {})        
+
+        entry = self.protein_sequences.get(cds_code, {})        
         return entry.get('taxonomy',{'taxon_id':'408169','taxon_name':'metagenome'})

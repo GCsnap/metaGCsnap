@@ -17,8 +17,9 @@ class AssembliesDBHandler:
         cursor.execute('DROP TABLE IF EXISTS mappings')
         cursor.execute('''
             CREATE TABLE mappings (
-                ncbi_code TEXT PRIMARY KEY,
-                assembly_accession TEXT
+                seq_code TEXT PRIMARY KEY,
+                assembly_accession TEXT,
+                contig TEXT
             )
         ''')
         conn.commit()
@@ -82,7 +83,7 @@ class AssembliesDBHandler:
         self.disable_indices()
         conn = sqlite3.connect(self.db)
         cursor = conn.cursor()
-        cursor.executemany('INSERT OR REPLACE INTO mappings (ncbi_code, assembly_accession) VALUES (?, ?)', mappings)
+        cursor.executemany('INSERT OR REPLACE INTO mappings (seq_code, assembly_accession, contig) VALUES (?, ?, ?)', mappings)
         conn.commit()
         conn.close()
             
@@ -152,15 +153,15 @@ class AssembliesDBHandler:
 
         # determin correct colum
         if table == 'mappings':
-            column = 'ncbi_code'
+            column = 'seq_code'
         elif table == 'assemblies':
             column = 'assembly_accession'
         else:
             raise ValueError(f'Unknown table {table}')
 
-        # which records based on ncbi_codes
+        # which records based on seq_codes
         # the query contains ?,?,?,?, with the cursor.execute(query, codes) the values are inserted
-        records = f"({','.join(['?']*len(codes))})" # (?,?,?,?) for each entry in ncbi_code       
+        records = f"({','.join(['?']*len(codes))})" # (?,?,?,?) for each entry in seq_code       
         query = 'SELECT {} FROM {} WHERE {} IN {}'.format(select_fields,table,column,records)
         
         # execute query

@@ -131,8 +131,6 @@ def most_common_panel(
         'text_x': [], 'text_y': [],
         'protein_family': [],
         'protein_name': [],
-        'tm_text': [], 'tm_text_x': [], 'tm_text_y': [],
-        'tm_pred_text': [],
         'relative_start': [], 'relative_end': [],
         'protein_size': [],
         'family_frequency': [],
@@ -159,9 +157,6 @@ def most_common_panel(
         fc = family_colors.get(fam, family_colors.get(0))
         transparency = ctx.family_frequencies[i] / 100.0 if fam != 0 else 0.2
 
-        # TM annotation
-        tm_text, tm_pred = _tm_display(ctx.tm_annotations[i] if ctx.tm_annotations else '')
-
         # Protein info
         fam_summary = families_summary.get(fam, {})
         protein_name   = fam_summary.get('name', 'n.a.') if fam != 0 else 'Non-conserved'
@@ -181,12 +176,8 @@ def most_common_panel(
         data['transparency'].append(transparency)
         data['text_x'].append(text_x)
         data['text_y'].append(1.25)
-        data['tm_text_x'].append(text_x)
-        data['tm_text_y'].append(1.0)
         data['protein_family'].append(fam_label)
         data['protein_name'].append(protein_name)
-        data['tm_text'].append(tm_text)
-        data['tm_pred_text'].append(tm_pred)
         data['relative_start'].append(rel_start)
         data['relative_end'].append(rel_end)
         data['protein_size'].append(protein_size)
@@ -214,7 +205,7 @@ def most_common_panel(
         )
 
     # Invisible patches for hover
-    fig.patches(
+    hover_renderer = fig.patches(
         'xs', 'ys',
         fill_color=None, line_color=None, line_width=0,
         source=src,
@@ -230,21 +221,17 @@ def most_common_panel(
     fig.text('text_x', 'text_y', text='protein_family',
              text_baseline='bottom', text_align='center',
              text_font_size={'value': '6pt'}, source=src)
-    fig.text('tm_text_x', 'tm_text_y', text='tm_text',
-             text_color='white', text_baseline='middle', text_align='center',
-             text_font_size={'value': '6pt'}, source=src)
 
     tooltips = [
         ('Protein name',             '@protein_name'),
-        ('Predicted membrane protein','@tm_pred_text'),
         ('Structural model',          '@found_models'),
         ('Frequency at position',     '@family_frequency'),
         ('Median size (stdev)',        '@protein_size'),
         ('Median start',              '@relative_start'),
         ('Median end',                '@relative_end'),
     ]
-    fig.add_tools(HoverTool(tooltips=tooltips))
-    fig.add_tools(TapTool(callback=OpenURL(url='@model_links')))
+    fig.add_tools(HoverTool(tooltips=tooltips, renderers=[hover_renderer]))
+    fig.add_tools(TapTool(callback=OpenURL(url='@model_links'), renderers=[hover_renderer]))
 
     # Minimal axis decoration
     fig.yaxis.ticker = [1]

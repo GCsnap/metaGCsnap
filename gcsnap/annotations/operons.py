@@ -138,14 +138,31 @@ class Operons:
             - Find the operon clusters with PaCMAP.
             - Find all PaCMAP coordinates.
             - Update the syntenies with the new operon clusters.
-        """        
+        """
         # get the clusters by excluding the most common families
-        res = self.find_operon_clusters_with_PaCMAP(clean = True, coordinates_only = False) 
-        self.clean_coordinates, self.operon_cluster, self.sorted_targets = res
-        # and now all PacMap coordinates by using all families. 
-        # This will be later used for sorting the dendogram             
-        res = self.find_operon_clusters_with_PaCMAP(clean = False, coordinates_only = True) 
-        self.all_coordinates, self.sorted_targets = res
+        res = self.find_operon_clusters_with_PaCMAP(clean = True, coordinates_only = False)
+        clean_coords_arr, clusters_arr, self.sorted_targets = res
+        # and now all PaCMAP coordinates by using all families.
+        # This will be later used for sorting the dendrogram
+        res = self.find_operon_clusters_with_PaCMAP(clean = False, coordinates_only = True)
+        all_coords_arr, self.sorted_targets = res
+
+        # convert to target-keyed dicts — consistent with standard path
+        self.operon_cluster    = {t: int(clusters_arr[i])   for i, t in enumerate(self.sorted_targets)}
+        self.clean_coordinates = {t: clean_coords_arr[i]    for i, t in enumerate(self.sorted_targets)}
+        self.all_coordinates   = {t: all_coords_arr[i]      for i, t in enumerate(self.sorted_targets)}
+
+        # build distance matrix from pairwise Euclidean distances in 2D PaCMAP space
+        # consistent with what run() expects (.index rename, .to_csv)
+        n = len(self.sorted_targets)
+        D = np.zeros((n, n))
+        for i, ti in enumerate(self.sorted_targets):
+            for j, tj in enumerate(self.sorted_targets):
+                if i < j:
+                    d = np.linalg.norm(clean_coords_arr[i] - clean_coords_arr[j])
+                    D[i, j] = d
+                    D[j, i] = d
+        self.distance_matrix = pd.DataFrame(D, index=self.sorted_targets, columns=self.sorted_targets)
 
     def find_operon_clusters_with_PaCMAP(self, clean: bool = True, 
                                          coordinates_only: bool = True,

@@ -16,6 +16,8 @@ from gcsnap.visual.colors import assign_family_colors
 from gcsnap.visual.static import draw_static
 from gcsnap.visual.interactive import draw_interactive
 from gcsnap.visual.advanced import draw_advanced
+from gcsnap.visual.summary import draw_summary
+from gcsnap.visual.dna_context import draw_dna_context
 
 
 class Figures:
@@ -127,6 +129,43 @@ class Figures:
             self.console.print_warning(f'Interactive figure failed: {exc}')
             return ''
 
+    def run_dna_context(self, sort_mode: str | None = None) -> str:
+        """
+        Run the DNA-context interactive figure and return the HTML path.
+
+        Produces the same layout as :meth:`run_interactive` but with a
+        nucleotide-sequence track appended below the genomic-context map.
+        Individual letters become legible when zooming into a short region.
+
+        Parameters
+        ----------
+        sort_mode:
+            Override the sort mode from config.  Pass ``None`` to use the
+            value from ``config.arguments['sort_mode']['value']``.
+        """
+        if sort_mode is None:
+            sort_mode = self.config.arguments['sort_mode']['value']
+
+        try:
+            with self.console.status(
+                f'Creating DNA-context figure (sort_mode={sort_mode!r})'
+            ):
+                path = draw_dna_context(
+                    gc               = self.gc,
+                    family_colors    = self.family_colors,
+                    reference_family = self.reference_family,
+                    sort_mode        = sort_mode,
+                    out_dir          = self.out_dir,
+                )
+            self.console.print_info(
+                f'DNA-context figure saved to '
+                f'{os.path.join(os.path.basename(os.path.dirname(path)), os.path.basename(path))}'
+            )
+            return path
+        except Exception as exc:
+            self.console.print_warning(f'DNA-context figure failed: {exc}')
+            return ''
+
     def run_advanced(
         self,
         sort_mode:      str | None = None,
@@ -182,4 +221,44 @@ class Figures:
             return path
         except Exception as exc:
             self.console.print_warning(f'Advanced interactive figure failed: {exc}')
+            return ''
+
+    def run_summary(
+        self,
+        clans_file:   str | None = None,
+        out_filename: str = 'resume.html',
+    ) -> str:
+        """
+        Build the three-panel PaCMAP / network / CLANS summary page.
+
+        Requires that :class:`~gcsnap.annotations.operons.Operons` was run
+        with ``operon_cluster_advanced=True`` so that
+        ``operon_filtered_PaCMAP`` is present in the syntenies.
+
+        Parameters
+        ----------
+        clans_file:
+            Optional path to a ``.clans`` file for Panel 3.  When ``None``
+            the function looks for a pre-existing MMseqs TSV under
+            ``{out_label}/genomic_context/sequences/flanking_sequences.mmseqs``.
+        out_filename:
+            Basename of the output HTML file (default: ``resume.html``).
+
+        Returns
+        -------
+        str
+            Absolute path to the saved HTML file, or ``''`` on failure.
+        """
+        try:
+            with self.console.status('Creating summary figure (PaCMAP + network + CLANS)'):
+                path = draw_summary(
+                    gc           = self.gc,
+                    out_dir      = self.out_dir,
+                    clans_file   = clans_file,
+                    out_filename = out_filename,
+                )
+            self.console.print_info(f'Summary figure saved to {os.path.basename(path)}')
+            return path
+        except Exception as exc:
+            self.console.print_warning(f'Summary figure failed: {exc}')
             return ''

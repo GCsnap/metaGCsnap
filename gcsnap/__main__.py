@@ -1,211 +1,310 @@
-import os
-import shutil
+"""
+GCsnap – main entry point.
 
-from gcsnap.rich_console import RichConsole 
-from gcsnap.configuration import Configuration 
+Provider flags (at least one required):
+
+  --ncbi-targets   PATH   plain-text file with NCBI / UniProt target IDs
+  --mgnify-targets PATH   plain-text file with MGnify (MGYP…) target IDs
+  --local-targets  PATH   plain-text file with local-database target IDs
+
+If a provider flag is given but its optional dependencies are not installed,
+GCsnap exits immediately with an actionable install message instead of
+crashing mid-run.
+"""
+
+import sys
+import json
+from pathlib import Path
+
+from gcsnap.rich_console import RichConsole
+from gcsnap.configuration import Configuration
 from gcsnap.timing import Timing
-from gcsnap.targets import Target 
-from gcsnap.sequence_mapping import SequenceMapping
-from gcsnap.assemblies import Assemblies
 from gcsnap.genomic_context import GenomicContext
-from gcsnap.sequences import Sequences
-from gcsnap.families import Families
-from gcsnap.families_functions_structures import FamiliesFunctionsStructures
-from gcsnap.operons import Operons
-from gcsnap.taxonomy import Taxonomy
-from gcsnap.tm_segments import TMsegments
-from gcsnap.figures import Figures
 from gcsnap.utils import CustomLogger
+
+from gcsnap.targets import Target
+from gcsnap.annotations.families import Families
+from gcsnap.annotations.operons import Operons
+from gcsnap.visual.runner import Figures
+
+
+# ── constants ─────────────────────────────────────────────────────────────────
+
+# Maps CLI provider name → sub-directory used inside <out_label>/providers/
+_PROVIDER_DIRS = {
+    'ncbi':   'ncbi',
+    'mgnify': 'MGnify',
+    'local':  'local',
+}
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+def _read_ids(path: str) -> list | None:
+    """
+    Read a plain-text file of IDs – one per line, # comments ignored.
+
+    Returns None (instead of raising) when the file does not exist, so the
+    caller can print a friendly message and exit cleanly.
+    """
+    if not Path(path).is_file():
+        return None
+    with open(path) as fh:
+        return [
+            line.strip()
+            for line in fh
+            if line.strip() and not line.startswith('#')
+        ]
+
+
+def _validate_provider_paths(active: dict, config_args: dict) -> None:
+    """
+    Check that every path required by an active provider is set and exists on
+    disk. Exits immediately with an actionable message if a path is missing.
+    """
+    required = {
+        'local':  ['db_path', 'gff_path'],
+        'mgnify': ['MGnify_path'],
+    }
+    config_key_to_flag = {
+        'db_path':    'db-path',
+        'gff_path':   'gff-path',
+        'MGnify_path': 'MGnify-path',
+    }
+    for provider in active:
+        for key in required.get(provider, []):
+            value = config_args.get(key, {}).get('value')
+            flag  = config_key_to_flag[key]
+            if not value:
+                print(
+                    f'\n[ERROR] Provider "{provider}" requires --{flag} '
+                    f'but it is not set in config.yaml.\n'
+                    f'        Set {flag} in config.yaml or pass --{flag} on the CLI.\n'
+                )
+                sys.exit(1)
+            if not Path(value).exists():
+                print(
+                    f'\n[ERROR] Provider "{provider}" requires --{flag} '
+                    f'but the path does not exist: {value}\n'
+                    f'        Check that the path is correct in config.yaml.\n'
+                )
+                sys.exit(1)
+
+
+def _load_provider(name: str):
+    """
+    Lazy-import a provider Maker class.
+
+    Exits with a clear install hint when optional provider dependencies are
+    missing, rather than letting a bare ImportError surface mid-run.
+    """
+    try:
+        if name == 'ncbi':
+            from gcsnap.providers.ncbi.make import Maker
+        elif name == 'mgnify':
+            from gcsnap.providers.MGnify.make import Maker
+        elif name == 'local':
+            from gcsnap.providers.local.make import Maker
+        else:
+            raise ValueError(f'Unknown provider: {name}')
+        return Maker
+    except ImportError as exc:
+        print(
+            f'\n[ERROR] Provider "{name}" requires additional dependencies '
+            f'that are not installed.\n'
+            f'        Run:  bash install_providers.sh --{name}\n'
+            f'        Details: {exc}\n'
+        )
+        sys.exit(1)
+
+
+
+# ── pipeline ──────────────────────────────────────────────────────────────────
 
 def main():
     """
-    Main function to run the GCsnap pipeline:
-    A. Parse configuration file and arguments, initialize the RichConsole and Timing.
-    B. Parse targets.
-    C. Iterate over each element in target list.
-        1. Prework.
-        2. Block 'Collect'.
-            - a) Map sequences to UniProtKB-AC and NCBI EMBL-CDS.
-            - b) Find assembly accession, download and parse assemblies.
-            - c) Add sequence information to flanking genes.
-        3. Block 'Find families'.
-            - a) Find and add protein families.
-        4. Block 'Annotate'.
-            - a) Add functions and structures to families.
-            - b) Find and add operons.
-            - c) Get taxonomy information.
-            - d) Annotate transmembrane segments.
-        5. Produce genomic context figures.
-        6. Write output to summary file.
-        7. Wrap up.        
-    """    
+    GCsnap pipeline.
 
-    starting_directory = os.getcwd()
-    # Initial logging configuration
+    A. Parse configuration and arguments.
+    B. Dispatch targets to active providers; merge syntenies into a single
+       GenomicContext.  If a previous complete run exists, load from disk
+       and skip straight to figures.
+    C. Find protein families (MMseqs2 clustering).
+    D. Find operon / genomic-context types.
+    E. Produce figures.
+    F. Write outputs.
+    """
+
+    # ── initialise logging & console ─────────────────────────────────────
     CustomLogger.configure_loggers()
-
     console = RichConsole('base')
     console.print_title()
 
-    # A. Parse configuration and arguments
+    # ── A. configuration ─────────────────────────────────────────────────
     config = Configuration()
     config.parse_arguments()
 
-    # start timing
-    timing = Timing(config.arguments['timing']['value'])
-    t_all = timing.timer('All steps 0-10')
+    out_label = config.arguments['out_label']['value']
 
-    t_parse = timing.timer('Step 0: Parse Targets')
-    # B. parse targets
+    working_dir = Path(out_label).resolve()
+    working_dir.mkdir(parents=True, exist_ok=True)
+
+    CustomLogger.configure_iteration_logger(out_label, str(working_dir))
+    RichConsole.set_out_label(out_label)
+    config.write_configuration_yaml_log('input_arguments.log', str(working_dir))
+
+    timing = Timing(config.arguments.get('timing', {}).get('value', False))
+    t_all  = timing.timer('All steps')
+
+    # ── provider flags ────────────────────────────────────────────────────
+    provider_flags = {
+        'ncbi':   config.arguments.get('ncbi_targets',   {}).get('value'),
+        'mgnify': config.arguments.get('mgnify_targets', {}).get('value'),
+        'local':  config.arguments.get('local_targets',  {}).get('value'),
+    }
+    active = {name: path for name, path in provider_flags.items() if path}
+
+    if not active:
+        console.print_warning(
+            'No provider targets supplied.\n'
+            'Use --ncbi-targets, --mgnify-targets, or --local-targets '
+            '(each pointing to a plain-text file of IDs, one per line).'
+        )
+        sys.exit(1)
+
+    _validate_provider_paths(active, config.arguments)
+
+    # Build the Target object and populate per-provider ID lists.
     targets = Target(config)
-    targets.run()
-    t_parse.stop()
+    #all_target_ids: list = []
+    for provider, path in active.items():
+        ids = _read_ids(path)
+        if ids is None:
+            console.print_warning(
+                f'Target file for provider "{provider}" was not found: {path}\n'
+                'Please check the path and try again. Quitting.'
+            )
+            sys.exit(0)
+        targets.add_provider_targets(out_label, provider, ids)
+        #all_target_ids.extend(ids)
 
-    # C. Iterate over each element in target list
-    # each element is a dictionary with the label as key and the list of targets as value
-    for out_label in targets.get_targets_dict():
-        # all execution conditions depending on arguments from CLI or config.yaml
-        # are handled in the classes themselves
+    # ── B. collect genomic context ────────────────────────────────────────
+    gc = GenomicContext(config, str(working_dir))
 
-        # 1. Prework 
-        working_dir = os.path.join(starting_directory, out_label)
-        if not os.path.isdir(working_dir):
-            os.mkdir(working_dir)
-        os.chdir(working_dir)
-        # Configure logger for the current iteration
-        CustomLogger.configure_iteration_logger(out_label, starting_directory)
-        targets_list = targets.get_targets_dict().get(out_label)
-        # set outlabel in console for printing
-        RichConsole.set_out_label(out_label)
-        if len(targets_list) < 2:
-            console.print_warning('GCsnap was asked to analyze only one target')
-            console.print_skipped_step('Skipping target {}'.format(out_label))
-            continue
-        else:
-            console.print_working_on('Task {} with {} targets'.format(
-                out_label,len(targets_list)))
-        # write configuration to log file
-        config.write_configuration_yaml_log('input_arguments.log')
-        # Datastructure to store all information
-        gc = GenomicContext(config, out_label)
-        # add targets to genomic context
-        gc.curr_targets = targets_list      
+    if gc.all_init_files_present:
+        # Fast path: previous complete run – load everything from disk.
+        console.print_done('All result files present – loading from disk.')
+        gc.load_from_files(targets.all_ids)
 
-        #  2. Block 'Collect'
-        t_collect = timing.timer('Step 1: Collecting the genomic contexts')
+    else:
+        t_collect = timing.timer('Step 1: Collecting genomic contexts')
+        gc.curr_targets = []
+        for provider_name in active:
+            provider_ids = targets.get_provider_targets(provider_name)
+            console.print_working_on(
+                f'Provider [{provider_name}] – {len(provider_ids)} target(s)'
+            )
 
-        # a) Map sequences to UniProtKB-AC and NCBI EMBL-CDS
-        t_mapping = timing.timer('Step 1a: Mapping')
-        # Map all targets to UniProtKB-AC
-        mappingA = SequenceMapping(config, targets_list, 'UniProtKB-AC')
-        mappingA.run()
-        # Map all to RefSeq
-        mappingB = SequenceMapping(config, mappingA.get_codes(), 'RefSeq')
-        mappingB.run()
-        # merge them to mappingA
-        mappingA.merge_mapping_dfs(mappingB.mapping_df, columns_to_merge=['RefSeq'])
+            # Fast path: if the provider already wrote its JSON on a previous
+            # (possibly partial) run, load it directly without importing the
+            # provider or re-running any network/DB queries.
+            provider_cache = (
+                working_dir / 'providers'
+                / _PROVIDER_DIRS[provider_name]
+                / 'genomic_context_information.json'
+            )
+            if provider_cache.is_file():
+                console.print_done(
+                    f'Provider [{provider_name}] – cache found, loading from disk.'
+                )
+                provider_gc = GenomicContext(config, str(working_dir))
+                try:
+                    provider_gc.read_syntenies_from_json(str(provider_cache))
+                    provider_gc.curr_targets = provider_ids
+                except (json.JSONDecodeError, OSError):
+                    console.print_warning(
+                        f'Provider [{provider_name}] – cache file is corrupt, re-running provider.'
+                    )
+                    Maker       = _load_provider(provider_name)
+                    maker       = Maker(config, targets, console)
+                    provider_gc = maker.get_genomic_context()
+            else:
+                Maker       = _load_provider(provider_name)
+                maker       = Maker(config, targets, console)
+                provider_gc = maker.get_genomic_context()
 
-        # Map all targets to NCBI EMBL-CDS
-        mappingC = SequenceMapping(config, mappingA.get_codes(), 'EMBL-CDS')
-        mappingC.run()
-        # merge the two mapping results dataframes
-        mappingA.merge_mapping_dfs(mappingC.mapping_df)
-        # create targets and ncbi_columns and log not found targets
-        mappingA.finalize()
-        targets_and_ncbi_codes = mappingA.get_targets_and_ncbi_codes()  
-        t_mapping.stop()
+            if provider_gc is not None:
+                gc.update_syntenies(provider_gc.syntenies)
+                gc.curr_targets.extend(provider_gc.curr_targets)
+            else:
+                console.print_warning(f'Provider [{provider_name}]: no genomic context returned.')
 
-        # b). Find assembly accession, download and parse assemblies
-        t_assemblies = timing.timer('Step 1b: Assemblies')
-        assemblies = Assemblies(config, targets_and_ncbi_codes)
-        assemblies.run()
-        gc.update_syntenies(assemblies.get_flanking_genes())
-        t_assemblies.stop()
-
-        # c). Add sequence information to flanking genes
-        t_sequences = timing.timer('Step 1c: Sequences')        
-        sequences = Sequences(config, gc)
-        sequences.run()
-        gc.update_syntenies(sequences.get_sequences())
-        gc.write_syntenies_to_json('genomic_context_information.json')        
-        t_sequences.stop()
-
+        gc.write_syntenies_to_json()
         t_collect.stop()
 
-        if not config.arguments['collect_only']['value']:
+    # ── guard ─────────────────────────────────────────────────────────────
+    if len(gc.curr_targets) < 2:
+        console.print_warning(
+            f'Only {len(gc.curr_targets)} target(s) collected – '
+            'need at least 2 to analyse genomic context.'
+        )
+        sys.exit(0)
 
-            # 3. Block 'Find families'
-            t_family = timing.timer('Step 2: Finding protein families')
-            families = Families(config, gc, out_label)
-            families.run()
-            gc.update_syntenies(families.get_families())
-            gc.create_and_write_families_summary()
-            t_family.stop() 
+    console.print_working_on(
+        f'Task {out_label} – {len(gc.curr_targets)} total target(s)'
+    )
 
-            # 4. Block 'Annotate'
-            # a) Add functions and structures to families
-            t_annotate_families = timing.timer('Step 3: Annotating functions and structures')
-            # execution conditions handeled in the class
-            ffs = FamiliesFunctionsStructures(config, gc)
-            ffs.run()
-            gc.update_families(ffs.get_annotations_and_structures())
-            gc.write_families_to_json('protein_families_summary.json')
-            t_annotate_families.stop()
+    if config.arguments['collect_only']['value']:
+        console.print_skipped_step(
+            'collect_only mode: stopping after context collection.'
+        )
 
-            # b) Find and add operons        
-            t_operons = timing.timer('Step 4-5: Finding operon/genomic_context')
-            operons = Operons(config, gc, out_label)
-            operons.run()
-            gc.update_syntenies(operons.get_operons())
-            gc.create_and_write_operon_types_summary()
-            gc.find_most_populated_operon_types()   
-            t_operons.stop()
+    else:
 
-            # c) Get taxonomy information
-            t_taxonomy = timing.timer('Step 6: Mapping taxonomy')
-            taxonomy = Taxonomy(config, gc)
-            taxonomy.run()
-            gc.update_taxonomy(taxonomy.get_taxonomy())
-            gc.write_taxonomy_to_json('taxonomy.json')     
-            t_taxonomy.stop()                  
+        # ── C. protein families ───────────────────────────────────────────
+        t_families = timing.timer('Step 2: Finding protein families')
+        families = Families(config, gc, str(working_dir))
+        families.run()
+        gc.update_syntenies(families.get_families())
+        gc.create_and_write_families_summary(families)
+        t_families.stop()
 
-            # d) Annotate TM   
-            t_tm = timing.timer('Step 7: Finding ALL proteins with transmembrane segments')
-            tm = TMsegments(config, gc, out_label)
-            tm.run()
-            gc.update_syntenies(tm.get_annotations())
-            t_tm.stop()     
+        # ── D. operon types ───────────────────────────────────────────────
+        t_operons = timing.timer('Step 3: Finding operon types')
+        operons = Operons(config, gc, str(working_dir))
+        operons.run()
+        gc.update_syntenies(operons.get_operons())
+        gc.create_and_write_operon_types_summary()
+        gc.find_most_populated_operon_types()
+        t_operons.stop()
 
-            # 5. Produce genomic context figures
-            t_figures = timing.timer('Step 8-9: Producing figures')
-            figures = Figures(config, gc, out_label, starting_directory)      
-            figures.run()
-            t_figures.stop()    
+        # ── E. figures ────────────────────────────────────────────────────
+        t_figures = timing.timer('Step 4: Figures')
+        figures = Figures(config, gc, str(working_dir))
+        figures.run()
+        t_figures.stop()
 
-            # 6. Write output to summary file
-            t_output = timing.timer('Step 10: Write output')
-            gc.write_summary_table('{}_summary_table.tab'.format(out_label))
-
-            gc.write_families_to_json('protein_families_summary.json')   
-
-        else:
-            console.print_skipped_step('GCsnap was asked to collect genomic context only. Will not proceed further.')
-            t_output = timing.timer('Step 10: Write output')
-
-        # 7. Wrap up
-        gc.write_syntenies_to_json('all_syntenies.json')
-        # log to both loggers (one part of console, one via method)
-        CustomLogger.log_to_iteration('Successfully finished task {} with {} targets.'.format(
-            out_label,len(targets_list))) 
-        console.print_done('Task {} with {} targets'.format(out_label,len(targets_list)))
+        # ── F. outputs ────────────────────────────────────────────────────
+        t_output = timing.timer('Step 5: Write outputs')
+        gc.write_summary_table(
+            f'{working_dir.name}_summary_table.tab',
+            str(working_dir),
+        )
+        gc.write_families_to_json()
         t_output.stop()
 
-        # copy log file to working direcotry
-        # shutil.copy(os.path.join(starting_directory,'gcsnap.log'), os.getcwd())
-
+    # ── wrap up ───────────────────────────────────────────────────────────
+    gc.write_syntenies_to_json()
+    CustomLogger.log_to_iteration(
+        f'Successfully finished task {out_label} '
+        f'with {len(gc.curr_targets)} targets.'
+    )
+    console.print_done(
+        f'Task {out_label} with {len(gc.curr_targets)} targets'
+    )
     t_all.stop()
-    timing.to_csv('timing.csv')
+    timing.to_csv(str(working_dir / 'timing.csv'))
     console.print_final()
-    
+
+
 if __name__ == '__main__':
     main()

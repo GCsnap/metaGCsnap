@@ -26,7 +26,7 @@ class Families:
         console (RichConsole): The RichConsole object to print messages.
     """
 
-    def __init__(self, config: Configuration, gc: GenomicContext, out_label: str=None, tool: str='foldseek', sensitivity : float = 6.0, f_community : float = 0.01):
+    def __init__(self, config: Configuration, gc: GenomicContext, out_label: str=None, sensitivity: float = 6.0, f_community: float = 0.01):
         """
         Initialize the Families object.
 
@@ -34,15 +34,13 @@ class Families:
             config (Configuration): The Configuration object containing the arguments.
             gc (GenomicContext): The GenomicContext object containing all genomic context information.
             out_label (str): The label of the output.
-        """        
+            sensitivity (float): MMseqs2 sensitivity parameter.
+            f_community (float): MMseqs2 community fraction parameter.
+        """
         self.config = config
         self.cores = config.arguments['n_cpu']['value']
-        self.tool = tool
         self.sensitivity = sensitivity
         self.f_community = f_community
-        if tool not in ['mmseqs', 'foldseek']:
-            msg = f'Tool {tool} not recognized. Choose either "mmseqs" or "foldseek".'
-            RichConsole().stop_execution(msg)
         # set arguments
         
         if out_label is None:
@@ -52,7 +50,6 @@ class Families:
         
         self.out_dir = os.path.join(out_label, 'genomic_context','sequences')     
         os.makedirs(self.out_dir, exist_ok=True)
-        #self.out_dir = os.path.join(os.getcwd(), f'{out_label}_all_against_all_searches') 
         self.gc = gc
         self.syntenies = gc.get_syntenies()
         self.families_adapted = {}
@@ -109,21 +106,17 @@ class Families:
             # combine results
             self.families_adapted = {k: v for sub_dict in dict_list for k, v in sub_dict.items()}  
 
-    def find_cluster(self) -> list:
-        
-        """
-        Find the clusters with MMseqsCluster.
-        """        
-        # call MMseqsCluster
-        if self.tool == 'mmseqs':
-            cluster = MMseqsCluster(self.config, self.gc, self.out_dir, sensitivity = self.sensitivity, f_community = self.f_community)
-            self.mmseqs_results_file = cluster.mmseqs_results
-            self.fasta_file = cluster.fasta_file
-        elif self.tool == 'foldseek':
-            cluster = FoldseekCluster(self.config, self.gc, self.out_dir, sensitivity = self.sensitivity)
-
+    def find_cluster(self) -> None:
+        """Find protein family clusters using MMseqs2."""
+        cluster = MMseqsCluster(
+            self.config, self.gc, self.out_dir,
+            sensitivity=self.sensitivity,
+            f_community=self.f_community,
+        )
+        self.mmseqs_results_file = cluster.mmseqs_results
+        self.fasta_file = cluster.fasta_file
         cluster.run()
-        self.cluster_list = cluster.get_clusters_list() 
+        self.cluster_list = cluster.get_clusters_list()
         self.cluster_order = cluster.get_cluster_order()
 
     def assign_families(self, args: tuple[dict]) -> tuple[dict,list]:

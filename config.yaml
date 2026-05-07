@@ -4,20 +4,31 @@
 # ---------------------------------------
 # 
 out-label:
-    value: 
-        /scicore/home/schwede/pasqua0002/metaGCsnap/workflow/allSnap/tutorial/allSnap
+    value: default
     type: str
     help: Name of output directory. If default, name of the input file.
+ncbi-targets:
+    value:
+    type: str
+    help: Path to a plain-text file of NCBI / UniProt target IDs (one per line).
+mgnify-targets:
+    value:
+    type: str
+    help: Path to a plain-text file of MGnify (MGYP) target IDs (one per line).
+local-targets:
+    value:
+    type: str
+    help: Path to a plain-text file of local-database target IDs (one per line).
 ncbi-user-email:
-    value: jacopo.pasqualini95@gmail.com   
+    value:
     type: str
-    help: your ncbi associated mail.
+    help: Your NCBI-associated email. Can also be set via the NCBI_USER_EMAIL environment variable.
 ncbi-api-key:
-    value: 61f051c4414e5271a6f4268fbf4b7908a308
+    value:
     type: str
-    help: your ncbi api key.
+    help: Your NCBI API key. Can also be set via the NCBI_API_KEY environment variable.
 MGnify-path:
-    value: /scicore/home/schwede/pasqua0002/metaGCsnap/data/MGnify_2023_02
+    value:
     type: str
     help: Path to the MGnify database folder. To get all the data, look at the ./supplementary folder
 MGnify-proxies:
@@ -32,7 +43,7 @@ genome-classification:
       - taxonomy
     help: Method to classify metagenomic contigs.
 kraken-path:
-    value: /scicore/home/schwede/pasqua0002/metaGCsnap/data/kraken/GTDB
+    value:
     type: str
     help: Path to the Kraken database folder for taxonomic classification. To get all the data, look at the ./supplementary folder
 assemblies-data-update-age:
@@ -43,24 +54,14 @@ n-cpu:
     value: 4
     type: int
     help: Number of cores to use.
-n-nodes:
-    value: 1
-    type: int
-    help: Number of nodes to use (SLURM --nodes).
-n-ranks-per-node:
-    value: 20
-    type: int
-    help: Number of MPI ranks per node to use (SLURM --ntasks-per-node).
-n-cpus-per-rank:
-    value: 1
-    type: int
-    help: Number of CPUs per rank to use (SLURM --cpus-per-task) for MMseqs2. 
-        Total number of CPU cores per node needed = n-ranks-per-node * 
-        n-cpus-per-rank.
-data-path:
-    value: /storage/shared/msc/gcsnap_data/
+gff-path:
+    value: /storage/shared/msc/gcsnap_data/gff
     type: str
-    help: Path to the data folder.
+    help: Path to the flat folder containing all .gff.gz annotation files (used at pipeline runtime).
+db-path:
+    value: /storage/shared/msc/gcsnap_data/GCsnap
+    type: str
+    help: Path to the GCsnap database folder containing assemblies.db, sequences.db and the summary files.
 tmp-mmseqs-folder:
     value:
     type: str
@@ -77,11 +78,11 @@ foldseek-executable-path:
     type: str
     help: Path of Foldseek executable (i.e., foldseek) if not installed in Conda environment.
 mmseqs-executable-path:
-    value: '/scicore/home/schwede/pasqua0002/miniconda3/envs/metaGCsnap/bin/mmseqs'
+    value:
     type: str
     help: Path of MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment.
 sourmash-executable-path:
-    value: '/scicore/home/schwede/pasqua0002/miniconda3/envs/metaGCsnap/bin/sourmash'
+    value:
     type: str
     help: Path of Sourmash executable (i.e., sourmash) if not installed in Conda environment.
 collect-only:
@@ -89,17 +90,6 @@ collect-only:
     type: bool
     help: Boolean statement to make GCsnap collect genomic contexts only, 
         without comparing them.
-clans-patterns:
-    value:
-    type: str
-    help: Patterns to identify the clusters to analyse. They will be used to 
-        select the individual clusters in the clans map to analyse.
-clans-file:
-    value:
-    type: str
-    help: Used only for advanced interactive output representation (Clans file 
-        if the input is a clans file and -operon_cluster_advanced is set to 
-        True).
 n-flanking5:
     value: 4
     type: int
@@ -109,7 +99,7 @@ n-flanking3:
     type: int
     help: Number of flanking sequences to take on 3' end.
 exclude-partial:
-    value: false
+    value: true
     type: bool
     help: Exclude partial operon/genomic_context blocks. If turned off, partial 
         cases will still be ignored to get the most common genomic features.
@@ -134,15 +124,6 @@ num-iterations:
     type: int
     help: Number of iterations for all-against-all searches. Required to define 
         protein families.
-get-pdb:
-    value: true
-    type: bool
-    help: Get PDB information for representatives of the families found.
-functional-annotation-files-path:
-    value:
-    type: str
-    help: Path to the functional annotation files. If not specified, nothing 
-        annotated.
 operon-cluster-advanced:
     value: false
     type: bool
@@ -168,28 +149,6 @@ n-max-operons:
     type: int
     help: Maximum number of top most populated operon/genomic_context block 
         types.
-get-taxonomy:
-    value: true
-    type: bool
-    help: Boolean statement to get and map taxonomy information.
-annotate-TM:
-    value: false
-    type: bool
-    help: Boolean statement to find sequence features in the flanking genes.
-annotation-TM-mode:
-    value: uniprot
-    type: str
-    help: Method to use to find transmembrane segments.
-    choices:
-      - phobius
-      - tmhmm
-      - uniprot
-annotation-TM-file:
-    value:
-    type: str
-    help: File with pre-computed transmembrane features. Only use when the 
-        targets correspond to a single project (no multiple fasta or text 
-        files).
 interactive:
     value: true
     type: bool
@@ -219,22 +178,6 @@ min-coocc:
     type: float
     help: Minimum maximum co-occurrence of two genes to be connected in the 
         graphs.
-in-tree:
-    value:
-    type: str
-    help: Input phylogenetic tree. Only use when the targets correspond to a 
-        single project (no multiple fasta or text files).
-in-tree-format:
-    value: newick
-    type: str
-    help: Format of the input phylogenetic tree.
-    choices:
-      - newick
-      - nexus
-      - phyloxml
-      - phyloxml-strict
-      - phyloxml-extended
-      - phyloxml-complete
 sort-mode:
     value: taxonomy
     type: str

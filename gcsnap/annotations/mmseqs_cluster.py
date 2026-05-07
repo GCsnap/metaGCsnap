@@ -57,7 +57,7 @@ class MMseqsCluster:
         self.n_gcs = len(self.gc.curr_targets)
         # if mmseqs temporary folder is not set, use the output folder
         self.out_dir = out_dir
-        print(f'Output directory: {self.out_dir}')
+
         # check if existing
         if not os.path.isdir(self.out_dir):
             os.mkdir('./'+self.out_dir)            
@@ -139,7 +139,7 @@ class MMseqsCluster:
         """            
         
         if not os.path.isfile(self.mmseqs_results):
-            print(f'Running MMseqs with sensitivity {self.sensitivity}, output file: {self.mmseqs_results}')
+            print(f'Running MMseqs with sensitivity {self.sensitivity}')
             try:
                 _, stderr = self.mmseqs_command('mmseqs')
                 if len(stderr) > 0:
@@ -157,7 +157,8 @@ class MMseqsCluster:
                         self.console.print_hint('Please install MMseqs or add the path to the executable to config.yaml.')
                         self.console.stop_execution()         
         else:
-            print(f'MMseqs results already exist: {self.mmseqs_results}')
+            #with self.console.status('MMseqs results already exist'):
+            pass
 
     def mmseqs_command(self, mmseqs: str) -> tuple:
         """
@@ -181,11 +182,11 @@ class MMseqsCluster:
                 '-e', str(self.max_evalue), 
                 '-s', str(self.sensitivity),
                 '-c', str(self.min_coverage),
+                '--cov-mode', '0',
                 '--num-iterations', str(self.num_iterations),
                 '--threads', str(self.cores),
                 '--format-output', format]
 
-        print(' '.join(self.command))
         result = subprocess.run(self.command, capture_output=True, text=True)        
         return result.stdout, result.stderr       
     
@@ -255,7 +256,7 @@ class MMseqsCluster:
         
         print(f'Finding communities with Infomap')
         if os.path.isfile(self.communities_file):
-            print(f'Read communities from file: {self.communities_file}')
+            print(f'Read communities from file')
             communities = pd.read_json(self.communities_file, typ='series').to_dict()
             ids = list(communities.keys())
         else:
@@ -290,7 +291,7 @@ class MMseqsCluster:
 
             #communities = {str(k):str(v) for k,v in communities.items()}
 
-            print(f'Saving communities file: {self.communities_file}')
+            print(f'Saving communities file.')
             # Save communities to file
             with open(self.communities_file, 'w') as f:
                 json.dump(communities, f, indent=4)

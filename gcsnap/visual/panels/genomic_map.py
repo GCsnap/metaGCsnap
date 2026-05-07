@@ -84,11 +84,7 @@ def genomic_map_panel(
         'ys':            [],
         'text_x':        [],
         'text_y':        [],
-        'tm_text_x':     [],
-        'tm_text_y':     [],
-        'tm_text':       [],
-        'tm_pred_text':  [],
-        'assembly_link':   [],
+        'assembly_link': [],
     }
 
     yticklabels: dict[int, str] = {}
@@ -112,7 +108,8 @@ def genomic_map_panel(
         else:
             yticklabels[int(curr_y)] = taxon or assembly
 
-        cds_codes = fg.get('cds_codes', [])
+        cds_codes        = fg.get('cds_codes', [])
+
         for j, gene in enumerate(cds_codes):
             fam       = fg['families'][j]
             gene_name = fg['names'][j]
@@ -133,17 +130,6 @@ def genomic_map_panel(
 
             fc = family_colors.get(fam, family_colors.get(0))
 
-            tm_text    = ''
-            tm_pred    = 'n.a.'
-            if 'TM_annotations' in fg:
-                ann = fg['TM_annotations'][j]
-                if ann == 'TM':
-                    tm_text, tm_pred = 'TM', 'Yes'
-                elif ann == 'SP':
-                    tm_text, tm_pred = 'SP', 'Contains signal peptide'
-                else:
-                    tm_pred = 'No'
-
             fam_label = fam if (fam > 0) else ''
 
             data['operon'].append(operon)
@@ -161,10 +147,6 @@ def genomic_map_panel(
                                curr_y + y_half, curr_y, curr_y - y_half])
             data['text_x'].append(text_x)
             data['text_y'].append(curr_y + y_half)
-            data['tm_text_x'].append(text_x)
-            data['tm_text_y'].append(curr_y)
-            data['tm_text'].append(tm_text)
-            data['tm_pred_text'].append(tm_pred)
             data['assembly_link'].append(asm_link)
 
     src = ColumnDataSource(data)
@@ -198,7 +180,7 @@ def genomic_map_panel(
         )
 
     # Invisible patches layer for hover + tap
-    fig.patches(
+    hover_renderer = fig.patches(
         'xs', 'ys',
         fill_color=None, line_color=None, line_width=0,
         source=src,
@@ -220,10 +202,9 @@ def genomic_map_panel(
         ('Gene end',           '@relative_end'),
         ('Protein name',       '@name'),
         ('Family code',        '@protein_family'),
-        ('Membrane protein',   '@tm_pred_text'),
     ]
-    fig.add_tools(HoverTool(tooltips=tooltips))
-    fig.add_tools(TapTool(callback=OpenURL(url='@assembly_link')))
+    fig.add_tools(HoverTool(tooltips=tooltips, renderers=[hover_renderer]))
+    fig.add_tools(TapTool(callback=OpenURL(url='@assembly_link'), renderers=[hover_renderer]))
 
     # y-axis labels
     fig.yaxis.ticker = list(yticklabels.keys())

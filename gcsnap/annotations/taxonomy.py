@@ -13,8 +13,9 @@ from infomap import Infomap
 import gcsnap.providers.MGnify.helpers as hp
 from gcsnap.annotations.taxtree import get_dist
 from gcsnap.genomic_context import GenomicContext
+from gcsnap.rich_console import RichConsole
 from gcsnap.configuration import Configuration
-from gcsnap.providers.MGnify.dataset import Dataset
+
 
 class SourMashBinning:
 
@@ -32,6 +33,8 @@ class SourMashBinning:
         :param similarity_threshold: The similarity threshold for the binning. 0.97 is retained as a species-level threshold.
         """
 
+        self.console = RichConsole()
+
         self.sourmash_executable = config.arguments['sourmash_executable_path']['value']
 
         self.gc = gc
@@ -42,7 +45,7 @@ class SourMashBinning:
         
         self.binning_out_dir = self.gc.out_label / 'binning'
         self.binning_out_dir.mkdir(parents=True, exist_ok=True)
-        self.output = self.binning_out_dir / 'contigs.sig'
+        self.signatures = self.binning_out_dir / 'contigs.sig'
         
         # Path to the query FASTA file (e.g., metagenomic contigs)
 
@@ -70,8 +73,6 @@ class SourMashBinning:
 
         self.region_to_targets = dict(region_to_targets)
         
-        # Print initialization details
-        print(f'''SourMash binning of metagenomic contigs.''')
 
     def get_distance_matrix(self):
         """
@@ -121,7 +122,7 @@ class SourMashBinning:
 
         # sourmash sketch dna -p k=31,scaled=1000 contigs/contigs/MGYC*.fna.gz -o sourmash/contigs.sig
 
-        command = [ "sourmash", "sketch", "dna", "-p", "k=31,scaled=1000"] + self.contigs_fasta + ["-o", self.output ]
+        command = [ "sourmash", "sketch", "dna", "-p", "k=31,scaled=1000"] + self.contigs_fasta + ["-o", self.signatures ]
         command = [str(s) for s in command]
 
         self._run_command(command)
@@ -129,7 +130,7 @@ class SourMashBinning:
     def _compute_similarity_matrix(self):
 
         # sourmash compare --containment sourmash/contigs.sig -o sourmash/cont.npy --csv sourmash/similarity.csv  --labels-save sourmash/labels.txt
-        command = [ "sourmash", "compare", "--containment", self.output, "-o", self.containment_matrix_file, "--csv", self.similarity_matrix_file, "--labels-save", self.labels_file ]
+        command = [ "sourmash", "compare", "--containment", self.signatures, "-o", self.containment_matrix_file, "--csv", self.similarity_matrix_file, "--labels-save", self.labels_file ]
         command = [str(s) for s in command]
 
         self._run_command(command)
@@ -174,7 +175,7 @@ class SourMashBinning:
     
     def _find_species_bins(self):
 
-        print(f'Finding species level bins with Infomap:')
+
         if os.path.isfile(self.bins_file):
             print(f'Read metagenomic bins from file.')
             self.bins = pd.read_json(self.bins_file, typ='series').to_dict()
@@ -213,7 +214,7 @@ class SourMashBinning:
     
     def _release_tree(self):
         
-        if not os.path.exists(self.bins_file):
+        if os.path.exists(self.bins_file):
 
             with open(self.bins_file, 'r') as f:
                 self.bins = json.load(f)
@@ -249,32 +250,39 @@ class SourMashBinning:
 
     def run(self):
         
-        print(f'''Launchiung SourMash binning of metagenomic contigs''')
+        with self.console.status('Launching SourMash binning of genomic regions'):
+            pass
 
-        if not os.path.exists(self.output):
-            self._create_signatures()
+        if not os.path.exists(self.signatures):
+            with self.console.status('Creating signatures'):
+                self._create_signatures()
         else:
-            print(f"Output file {self.output} already exists.")
+            with self.console.status('Signatures file already exists.'):
+                pass
 
         if not os.path.exists(self.similarity_matrix_file):
-            print('Computing similarity matrix...')
-            self._compute_similarity_matrix()
+            with self.console.status('Computing similarity matrix'):
+                self._compute_similarity_matrix()
         else:
-            print(f"Output file {self.similarity_matrix_file} already exists.")
+            with self.console.status('Similarity matrix already exists.'):
+                pass
 
         if not os.path.exists(self.bins_distance_matrix_file):
-            print('Computing distance matrix...')
-            self._compute_distance_matrix()
+            with self.console.status('Computing distance matrix'):
+                self._compute_distance_matrix()
         else:
-            print(f"Output file {self.bins_distance_matrix_file} already exists.")
+            with self.console.status('Distance matrix already exists.'):
+                pass
 
         if not os.path.exists(self.targets_distance_matrix_file):
-            print('Preparing target level distance matrix...')
-            self._compute_target_distance_matrix()
+            with self.console.status('Preparing target level distance matrix'):
+                self._compute_target_distance_matrix()
         else:
-            print(f"Output file {self.targets_distance_matrix_file} already exists.")
+            with self.console.status('Target level distance matrix already exists.'):
+                pass
 
-        self._find_species_bins()
+        with self.console.status('Finding species level bins'):
+            self._find_species_bins()
         
         self._update_taxonomy()
 

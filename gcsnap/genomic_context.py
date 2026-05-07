@@ -441,7 +441,7 @@ class GenomicContext:
         # print and log message
         self.console.print_done('Selected operon written to {}'.format(file_name))     
 
-    def write_to_fasta(self, file_name: str, file_path: str = None, exclude_pseudogenes: bool = False) -> str:
+    def write_to_fasta(self, file_name: str, file_path: str = None, exclude_pseudogenes: bool = False, alphabet='protein') -> str:
         """
         Write the flanking genes to a fasta file.
 
@@ -458,7 +458,7 @@ class GenomicContext:
         # at least when no default value is provided        
         lines_to_write = ['>{}|{}\n{}\n'.format(cds_code, 
                                 self.syntenies[target]['flanking_genes']['names'][i], 
-                                self.syntenies[target]['flanking_genes']['sequences'][i])
+                                self.syntenies[target]['flanking_genes'][f'{alphabet}_sequences'][i])
             for target in self.syntenies.keys()
             for i, cds_code in enumerate(self.syntenies[target]['flanking_genes']['cds_codes'])
             if self.syntenies[target]['flanking_genes']['names'][i] != 'pseudogene' 
@@ -546,7 +546,7 @@ class GenomicContext:
                 
                 try:
                     self.families[family]['name'] = statistics.mode(self.families[family]['name'])
-                except:
+                except statistics.StatisticsError:
                     self.families[family]['name'] = self.families[family]['name'][0]
 
             if -1 in self.families:
@@ -725,7 +725,7 @@ class GenomicContext:
             for i, prot_name in enumerate(self.syntenies[target]['flanking_genes']['names']):
                 list_to_join = [operon_type, 
                                 target, 
-                                self.syntenies[target]['assembly_metadata']['cds_code'], 
+                                self.syntenies[target]['assembly_metadata']['target_cds'], 
                                 self.syntenies[target]['flanking_genes']['directions'][i], 
                                 str(self.syntenies[target]['flanking_genes']['starts'][i]), 
                                 str(self.syntenies[target]['flanking_genes']['ends'][i]),
@@ -866,8 +866,141 @@ class GenomicContext:
              self.console.print_info("Re-creating operon types summary from loaded syntenies...")
              self.create_operon_types_summary()
 
+    def summarize_operon(self, operons: list = None) -> None:
+        """
+        Write tabular summaries for selected operons.
+
+        Two CSV files are written under
+        ``<out_label>/genomic_context/operon_summaries/``:
+
+        * **assembly_metadata.csv** – one row per target/sequence with
+          assembly and taxonomy metadata (mirrors the assembly table in the
+          advanced HTML visualisation).
+        * **protein_families.csv** – one row per protein family found in
+          each operon, sorted by frequency descending, including the
+          representative sequence ID and amino-acid sequence (mirrors the
+          family table in the advanced HTML visualisation).
+
+        Args:
+            operons: Optional list of operon identifiers to export.  Each
+                element may be a full string key (e.g. ``'GC Type 00001'``)
+                or an integer (matched by zero-padded suffix, e.g. ``1``).
+                When ``None`` (default) all selected operons are exported.
+        """
+        from collections import Counter
+
+        # ── select operons ────────────────────────────────────────────────
+        if operons is None:
+            groups = self.selected_operons
+        else:
+            groups = {}
+            for item in operons:
+                if isinstance(item, int):
+                    suffix = f'{item:05d}'
+                    for key in self.selected_operons:
+                        if key.endswith(suffix):
+                            groups[key] = self.selected_operons[key]
+                elif item in self.selected_operons:
+                    groups[item] = self.selected_operons[item]
+
+        if not groups:
+            self.console.print_warning('summarize_operon: no matching operons found.')
+            return
+
+        # ── output directory ──────────────────────────────────────────────
+        out_dir = self.genomic_context_dir / 'operon_summaries'
+        os.makedirs(out_dir, exist_ok=True)
+
+        # ── representative sequences from FASTA ───────────────────────────
+        # family_id (int) -> (representative_id, sequence_str)
+        family_to_rep: dict = {}
+        rep_fasta = self.sequences_dir / 'representatives.fasta'
+        if rep_fasta.exists():
+            for record in SeqIO.parse(str(rep_fasta), 'fasta'):
+                for part in record.description.split():
+                    if part.startswith('family:'):
+                        for fid in part[len('family:'):].split(','):
+                            try:
+                                family_to_rep[int(fid)] = (record.id, str(record.seq))
+                            except ValueError:
+                                pass
+
+        # ── cds_code -> sequence lookup (fallback when FASTA is absent) ───
+        cds_to_seq: dict = {}
+        for syn in self.syntenies.values():
+            fg = syn.get('flanking_genes', {})
+            for code, seq in zip(fg.get('cds_codes', []), fg.get('protein_sequences', [])):
+                cds_to_seq[code] = seq
+
+        # ── collect rows ──────────────────────────────────────────────────
+        asm_rows = []
+        fam_rows = []
+
+        for operon_label, gdata in sorted(groups.items()):
+            members    = gdata['target_members']
+            structures = gdata['operon_protein_families_structure']
+            n          = len(members)
+
+            # assembly / taxonomy metadata – one row per target
+            for t in members:
+                syn  = self.syntenies.get(t, {})
+                meta = syn.get('assembly_metadata', {})
+                tax  = syn.get('taxonomy', {})
+                asm_rows.append({
+                    'operon':             operon_label,
+                    'sequence_id':        t,
+                    'source':             meta.get('source', ''),
+                    'target_cds':         meta.get('target_cds', ''),
+                    'genomic_region':     meta.get('genomic_region', ''),
+                    'assembly_accession': meta.get('assembly_accession', ''),
+                    'assembly_url':       meta.get('assembly_url', meta.get('assembly_link', '')),
+                    'target':             meta.get('target', ''),
+                    'target_source':      meta.get('target_source', ''),
+                    'taxon_id':           tax.get('taxon_id', ''),
+                    'taxon_name':         tax.get('taxon_name', ''),
+                    'bin':                syn.get('bin', ''),
+                })
+
+            # protein families – one row per family, sorted by frequency
+            fam_counts: Counter = Counter(
+                fam
+                for struct in structures
+                for fam in set(struct)
+                if fam > 0
+            )
+            for fam, count in sorted(fam_counts.items(), key=lambda x: -x[1]):
+                fam_summary = self.families.get(fam, {})
+                rep_id, rep_seq = family_to_rep.get(fam, ('', ''))
+                # fallback: use the first listed member
+                if not rep_id:
+                    members_list = fam_summary.get('members', [])
+                    if members_list:
+                        rep_id  = members_list[0]
+                        rep_seq = cds_to_seq.get(rep_id, '')
+                fam_rows.append({
+                    'operon':             operon_label,
+                    'family':             fam,
+                    'name':               fam_summary.get('name', 'n.a.'),
+                    'count':              count,
+                    'frequency_pct':      round(count * 100.0 / n, 1),
+                    'representative_id':  rep_id,
+                    'representative_seq': rep_seq,
+                })
+
+        # ── write CSVs ────────────────────────────────────────────────────
+        asm_path = out_dir / 'assembly_metadata.csv'
+        fam_path = out_dir / 'protein_families.csv'
+
+        pd.DataFrame(asm_rows).to_csv(asm_path, index=False)
+        pd.DataFrame(fam_rows).to_csv(fam_path, index=False)
+
+        self.console.print_done(
+            f'Operon summaries written to {out_dir} '
+            f'({len(groups)} operon(s))'
+        )
+
     @staticmethod
-    def get_empty_flanking_genes() -> dict:  
+    def get_empty_flanking_genes() -> dict:
         """
         Get an empty dictionary for the flanking genes.
 
@@ -881,5 +1014,6 @@ class GenomicContext:
                 'ends': [],
                 'directions': [],
                 'names': [],
-                'sequences': [],
+                'dna_sequences': [],
+                'protein_sequences': [],
                 'families': []}

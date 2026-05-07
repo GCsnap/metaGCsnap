@@ -1,0 +1,9 @@
+name: gcsnap
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - dask
+  - jsonapi-client

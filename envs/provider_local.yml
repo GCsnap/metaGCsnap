@@ -1,0 +1,13 @@
+name: gcsnap
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  # NOTE: on HPC clusters (e.g. SLURM/scicore) you may want to install
+  # mpi4py against the system MPI module rather than the conda one.
+  # In that case, load the MPI module first and run:
+  #   pip install mpi4py
+  # instead of letting conda manage it here.
+  - mpi4py

@@ -335,22 +335,23 @@ class CustomLogger():
         logging.getLogger('asyncio').setLevel(logging.WARNING)
 
     @classmethod
-    def configure_iteration_logger(cls, out_label: str, starting_directory: str) -> None:
+    def configure_iteration_logger(cls, out_label: str, working_directory: str) -> None:
         """
         Configure the iteration logger for a specific iteration.
 
         Args:
-            out_label (str): The label of the task equal to the folder in which the output is stored.
-            starting_directory (str): The starting directory of the pipeline.
+            out_label (str): The label of the task (unused, kept for API compat).
+            working_directory (str): The output directory where the log file will be written.
         """
         logger_iteration = logging.getLogger('iteration')
 
-        # Define the new log file name for the current iteration
-        iteration_log_file = os.path.join(os.getcwd(), f'gcsnap_{out_label}.log')
-        base_log_file = os.path.join(starting_directory, 'gcsnap.log')
+        # Write the iteration log directly into the output directory
+        iteration_log_file = os.path.join(working_directory, 'gcsnap.log')
+        base_log_file = os.path.join(os.getcwd(), 'gcsnap.log')
 
-        # Copy the base log content to the iteration log file if needed
-        cls.copy_log_content(base_log_file, iteration_log_file)
+        # Copy the base log content only if it exists (may be absent when os.chdir is not used)
+        if os.path.isfile(base_log_file) and base_log_file != iteration_log_file:
+            cls.copy_log_content(base_log_file, iteration_log_file)
 
         # Remove existing iteration handlers
         for handler in logger_iteration.handlers[:]:

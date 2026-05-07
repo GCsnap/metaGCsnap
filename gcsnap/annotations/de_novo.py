@@ -147,7 +147,7 @@ class DeNovo:
                     family = -1
 
                 # 2. Known annotation (skipped for pseudogenes)
-                if cds_code in self.cds_to_annotation and name != 'pseudogene':
+                if cds_code in self.cds_to_annotation: # and name != 'pseudogene':
                     ann_id, ann_name = self.cds_to_annotation[cds_code]
                     family = self.annotation_id_to_family[ann_id]
                     flanking['names'][i] = ann_name
