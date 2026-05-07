@@ -1,48 +1,38 @@
-# GCsnap2.0 Desktop
+# metaGCsnap
 
-This is the implementation of GCsnap2.0 as a desktop application.
+metaGCsnap is an extended version of [GCsnap 2.0](https://github.com/GCsnap/gcsnap2desktop) that supports multiple genomic-context data providers in a single run: **NCBI**, **UniProt**, **MGnify**, and a **local database**. Targets from different providers are merged into a unified genomic-context view, enabling direct comparison of genomic contexts across resources. An overview of metaGCsnap workflow is shown below.
 
-GCsnap is a flexible Python-based tool that allows for the interactive comparison of the genomic contexts of protein-coding genes from any genome at any taxonomic level, integrating them with functional and structural information for any of the genes shown. 
 
-![](./examples/workflow.png)
+![](./metaGCsnap.png)
 
-By connecting the output to different protein databases, the user can navigate through the different genomic contexts from a simple interactive platform, facilitating the further analysis of the contexts found. 
+---
 
-GCsnap is not limited to a single input format, can preform batch jobs and accepts protein classification maps. 
+## Table of Contents
 
-All information is stored in detailed, human and machine-readable files, and customable publication-ready figures.  
+1. [Installation](#installation)
+2. [Providers setup](#setting-up-the-mgnify-database)
+4. [Usage](#usage)
+5. [Configuration](#configuration)
+6. [Credits](#credits)
 
-![](./examples/Fig1.png)
+---
 
-Thank you for using and showing interest on GCsnap!
+## 1] Installation
 
-## Dependencies
+**conda or mamba must be installed before running the install script.**
 
-All dependencies are managed via conda and the environment files in the `envs/` folder.
-The base environment covers the core packages (Python 3.11, MMseqs2, Biopython, Bokeh,
-Matplotlib, Networkx, PaCMAP, Scikit-learn, Pandas, Rich, Requests, and more).
-Each data provider adds its own extra packages on top.
-
-## Installation
-
-GCsnap uses a single script, `install_providers.sh`, to create the conda environment,
-install the right dependencies, and register the `GCsnap` CLI — all in one step.
-**conda must be installed before running the script.**
-
-### Step 1 — base install (no data providers)
+### Step 1 — clone and create the base environment
 
 ```bash
-git clone <repository-url>
-cd <repository-folder>
-
+git clone https://github.com/GCsnap/metaGCsnap.git
+cd metaGCsnap
 bash install_providers.sh --base
 conda activate gcsnap
 ```
 
-This creates the `gcsnap` conda environment with all core dependencies and registers
-the `GCsnap` command. No data provider is available yet.
+This creates the `gcsnap` conda environment with all core dependencies (Python 3.11, MMseqs2, Biopython, Bokeh, Matplotlib, Networkx, PaCMAP, Scikit-learn, Pandas, Rich, Requests, and more) and registers the `GCsnap` CLI. No data provider is available yet.
 
-### Step 2 — install a data provider
+### Step 2 — install provider dependencies
 
 Run the script again with the flag for the provider(s) you need:
 
@@ -53,121 +43,218 @@ bash install_providers.sh --local     # local database provider
 bash install_providers.sh --complete  # all three providers
 ```
 
-Providers can be added at any time after the base install; the base environment is
-preserved and only the provider-specific packages are added.
+Providers can be added at any time after the base install. The base environment is preserved and only the provider-specific packages are added.
 
-### Step 3 — configure provider paths
+### Step 3 — configure provider configuration fields
 
-Open `config.yaml` and fill in the paths required by the providers you installed:
+Open `config.yaml` and fill in the paths required by the providers you installed. For a detailed description of the fields, see the config section below:
 
 | Provider | Keys to set |
 |----------|-------------|
 | NCBI     | `ncbi-user-email`, `ncbi-api-key` |
-| MGnify   | `MGnify-path`, `kraken-path` |
+| MGnify   | `MGnify-path`, `MGnify-proxies` (optional) |
 | local    | `gff-path`, `db-path` |
 
+For instructions on how to get the ncbi-api, see https://www.ncbi.nlm.nih.gov/datasets/docs/v2/api/api-keys.
 ### Windows note
 
-MMseqs2 has no Windows conda package. Install without `--local` and download the static
-binary from https://mmseqs.com/latest/. Pass the path via `--mmseqs-executable-path`
-when running GCsnap.
+MMseqs2 has no Windows conda package. Install without `--local` and download the static binary from https://mmseqs.com/latest/. Pass the path via `--mmseqs-executable-path` when running GCsnap.
 
+---
 
-## Allowed inputs
+## 2] Providers setup
 
-GCsnap takes as main input a list of sequence identifiers, which can be in **RefSeq, EMBL-CDS, UniProtKB, UniRef, GeneID, and ENSEMBLE ID formats, or a mix**. These identifiers can be given as:
-  - a text file, where each is in a different line
-  - a fasta file, where the sequence header starts with the sequence identifier
-  - a sequences cluster file in CLANS format
-  - direct input in the terminal as a space-separated list
-  
+To access the data of each repositroy, you are required to run some scripts.  
+
+## 2.1] Setting Up the MGnify Database
+
+Before using the MGnify provider, you need to download the relevant MGnify database files.
+
+### Choose a version
+
+- `2024_04` — most recent version; best for exhaustive local searches. Matches the [MGnify online phmmer search](https://www.ebi.ac.uk/metagenomics/sequence-search/search/phmmer). Requires considerable storage (~103 GB after conversion).
+- `2023_02` — corresponds to the [ESM Atlas](https://esmatlas.com/about). Use this to investigate have a correspondence to protein structures.
+
+### Download the raw files
+
+As a concrete example, we will consider the most recent MGnify version, which is 2024_04
+
+```bash
+python3 gcsnap/supplementary/MGnify/download.py \
+    --MGnify-version 2024_04 \
+    --out-dir your/out/dir
+```
+
+Both `--MGnify-version` and `--out-dir` are required. Given the limitations of MGnify API we will need to host locally a set of files to match different IDs. This creates `your/out/dir/MGnify_2024_04/` with the relevant data. Separating this step from the conversion step is useful when working on HPC systems with distinct download and compute nodes. This step is sufficient to run metaGCsnap, once the target MGnify IDs are provided. Such IDs can be obtained from the putput of the online phmmer search. For a concrete example, you can see the tutorial.
+
+### Convert to Parquet
+
+To speed up ID searches, convert the `.tsv.gz` files to `.parquet`:
+
+```bash
+python3 gcsnap/supplementary/MGnify/make_MGnify.py \
+    --database your/out/dir/MGnify_2024_04
+```
+
+Once the conversion is complete, you can delete the original `.tsv.gz` files to save space. (we will take care of ths aspect later)
+
+### Expected database layout
+
+After setup, `your/out/dir/MGnify_2024_04/` should look like:
+
+```
+MGnify_2024_04/ (~103 GB)
+├── contig_map/           (~32 GB)
+│   ├── delimiters.csv
+│   └── mgy_contig_map_*.parquet
+└── seq_metadata/         (~71 GB)
+    ├── delimiters.csv
+    └── mgy_seq_metadata_*.parquet
+```
+
+The folder structure is the same regardless of the MGnify version used.
+
+---
+
+## 2.2] Setting Up a Local Database
+
+The local provider works with a pre-built SQLite database of assemblies and sequences. Setup scripts are in `gcsnap/supplementary/local/`.
+
+```bash
+python3 gcsnap/supplementary/local/db_create_assemblies.py --config config.yaml
+```
+
+Set `gff-path` and `db-path` in `config.yaml` to point to your GFF annotation folder and the resulting database, respectively.
+
+---
+
+## Provider-specific config edits
+
+Depending on the installed providers, you will have to specify 
+
+| Provider | Mandatory field | Description |
+|----------|----------------|-------------|
+| MGnify | `MGnify-path` | Path to your local `MGnify_<version>/` folder |
+| MGnify | `MGnify-proxies` | http/s proxies for API calls |
+| NCBI | `ncbi-user-email` | Your email address, required by NCBI Entrez |
+| NCBI | `ncbi-api-key` | Your NCBI API key — raises rate limit from 3 to 10 req/s |
+| local | `gff-path` | Path to your folder of `.gff.gz` annotation files |
+| local | `db-path` | Path to your GCsnap SQLite database |
+
 ## Usage
+GCsnap requires at least one provider target file. Provider flags can be combined freely to run a mixed NCBI + MGnify job.
 
-In its most simple mode of usage, GCsnap only requires a list of sequence identifiers. 
+```bash
+GCsnap --ncbi-targets    path/to/ncbi_ids.txt
+GCsnap --mgnify-targets  path/to/mgyp_ids.txt
+GCsnap --local-targets   path/to/local_ids.txt
 
-**Required** arguments are:
-```
-  --targets: which can be a list of sequence identifiers, a text file, a fasta file, a clans file or a list of files
-```
-**Optional** arguments allow for the tweaking of GCsnap behaviour. Default values for arguments are taken from the  ```config.yaml```. They can be changed there directly or pass via the CLI, e.g., ```--n-cpu 2```.  
-If the configuration file is not found, it is created with default values and can be edited for future runs.
-A list of all possible arguments and their current default value can be show in the terminal via:
-```  
-  GCsnap --help 
+# Combined run
+GCsnap --ncbi-targets path/to/ncbi_ids.txt --mgnify-targets path/to/mgyp_ids.txt
 ```
 
-The most relevant arguments are:
-```  
-  --n-cpu: the number of cores of zour CPU to be used when processing.
-  --n-flanking5: the number of flanking genes to be taken on the 5' side.
-  --n-flanking3: the number of flanking genes to be taken on the 3' side.
-  --ncbi-user-email: it may be required to access the NCBI databases. It is not used for anything else.
-  --ncbi-api-key: the key for NCBI API, which allows for up to 10 queries per second to NCBI databases. Can be obtained after   obtaing an NCBI account.
-  --get-taxonomy: set to false if no taxonomy is to be collected.
-  --annotate-TM: set to true to annotate the presence of transmembrane segments and signal peptides.
-  --annotation-TM-mode: the mode to use to collect transmembrane and signal peptide annotations (phobius, tmhmm or uniprot).
-  --clans-pattern: a set of patterns in CLANS groups names that define different groups to be considered as independent jobs.
-  --operon-cluster-advanced: set to true to have a more comprehensive analysis/summary of the genomic contexts found. Ideal for very large input sets.  
+Each target file is a plain-text file with one identifier per line (`#` lines are ignored).
+
+All optional arguments can be set in `config.yaml` or passed directly on the CLI (e.g. `--n-cpu 8`). CLI values take precedence when `overwrite-config: true`.
+
+```bash
+GCsnap --help   # full list of arguments and current defaults
 ```
 
-For Windows users:
-```  
-  --mmseqs-executable-path: path to MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment.
+### Resume from a previous run
+
+If a run is interrupted, re-running the same command will automatically skip providers and steps whose output files are already present on disk.
+
+---
+
+
+## Advanced topics
+
+### Taxonomic assignment
+
+By default, metaGCsnap clusters contigs using SourMash (ANI estimation). To enable actual taxonomic assignment, download the GTDB Kraken2 index (requires ~0.5 TB):
+
+```bash
+python3 gcsnap/supplementary/MGnify/download.py \
+    --MGnify-version 2024_04 \
+    --out-dir your/out/dir \
+    --taxonomy-db \
+    --taxonomy-db-dir your/taxdb/dir
 ```
 
-## 1. Simple job
-Using the example in folder ```examples/ybez_KHI```, the input file ```targets_ybez_selected.txt``` contains a list of protein sequence identifiers in UniprotKB format. Running:
+To the include taxonomic profiling in metaGCsnap workflow, edit the following configuration flags:
 
+| Provider | Mandatory field | Description |
+|----------|----------------|-------------|
+| MGnify | `genome-classification` | taxonomy
+| MGnify | `kraken-path` | Path to your GTDB Kraken2 index |
+
+The taxonomy and protein search directories can be stored separately. Set `kraken-path` in `config.yaml` to `your/taxdb/dir` to activate Kraken2-based taxonomy.
+
+### Local sequence search against MGnify proteins
+By default, metaGCsnap identifies MGnify targets by matching MGYP identifiers against the locally hosted Parquet index. For large-scale or custom queries that require searching by sequence rather than by ID, you can build a local MMseqs2 index against the full MGnify protein catalogue.
+
+First, download the protein FASTA (approx. 74 GB for 2024_04) by re-running the download script with the --local-proteins flag:
+
+```bash
+python3 gcsnap/supplementary/MGnify/download.py \
+    --MGnify-version 2024_04 \
+    --out-dir your/out/dir \
+    --local-proteins
 ```
-GCsnap --targets targets_ybez_selected.txt
-```
-or on Windows
-```
-GCsnap --targets targets_ybez_selected.txt  --mmseqs-executable-path C:\path_to_mmseqs_exec\mmseqs.bat
-```
 
-will generate the output folder ```targets_ybez_selected```, where all output files and figures are stored. This will NOT annotate transmembrane segments and signal peptides.
+This command will skip the download of already present files. Then submit the provided SLURM script to build the MMseqs2 index (edit resource settings as needed for your cluster):
 
-In order to do so, one shall run:
-```
-GCsnap --targets targets_ybez_selected.txt --annotate-TM True
-```
-which will by default collect that information from Uniprot.
-
-## 2. Job from a CLANS file
-Using the example in folder examples/yqlc_KHII/, the input file yqlc_nostoc_blast_nrbac70.clans is a classification file encompassing two clusters of sequences, which are named cluster1_cyanobacteria and cluster2_allothers. Running:
-```
- GCsnap --targets yqlc_nostoc_blast_nrbac70.clans
-```
-will make GCsnap consider all identifiers as a single job, while running:
-```
- GCsnap --targets yqlc_nostoc_blast_nrbac70.clans  --clans-pattern cluster 
-```
-will make GCsnap identify all clusters in the CLANS file that have 'cluster' in their name, which will be considered as two independent jobs, generating the two folders [cluster1_cyanobacteria](./examples/yqlc_KHII/clans_cluster/cluster1_cyanobacteria/) and [cluster2_allothers](./examples/yqlc_KHII/clans_cluster/cluster2_allothers/).
+sbatch gcsnap/supplementary/MGnify/make_mmseqs.sh your/out/dir
+This generates an index at your/out/dir/mmseqsDBs/mgyc. For most users the 90% identity cluster representative set is recommended. Note that local sequence search can require up to ~350 GB of RAM.
 
 
-## 3. Advanced genomic context analysis
-GCsnap incorporates an "Advanced mode", which can be used by setting the -operon_cluster_advanced flag to True. This mode uses PaCMAP (https://github.com/YingfanWang/PaCMAP) to search for clusters of similar genomic contexts and, instead of displaying all contexts in one single view, first generates a summary page displaying the clusters of genomic contexts found and a "family composition spectrum", allowing for better interpretation of the diversity of genomic contexts found. In addition, a detailed page is generated for each genomic context cluster/type defined, which includes the classic genomic context block but also a table listing the properties of the protein families defined. This new mode is useful for the analysis of very large input sets (thousands of sequences or large CLANS cluster maps)
+## Configuration
 
-Using the example in folder examples/yqlc_KHII/ [examples/yqlc_KHII/](./examples/yqlc_KHII/) and the input file yqlc_nostoc_blast_nrbac70.clans without defining target clusters (i.e., it will use all sequences in the map), we can run a simple advanced job by running:
-```
-GCsnap --targets yqlc_nostoc_blast_nrbac70.clans --operon-cluster-advanced True
-```
-The output summary page displays on the top 3 different scatter plots, where the color of the dots corresponds to the type of the genomic context they belong to. As the input file was a CLANS file, GCsnap recognized it as such and thus diplays it. Otherwise, the area would be white unless an input CLANS file is given explicitly. Each sequence is listed below these 3 scatter plots within a table, with their corresponding associated genomic context type as well as their collected taxonomy. The button next to the top of the table allows for changing the display and shows a sorted spectrum of family compositions for each context type.  
-![](./examples/Fig3.png)  
+Edit `config.yaml` to set default values. Key options:
 
-The figure below shows the summary page for genomic context type 0000.   
-![](./examples/Fig2.png)
+| Option | Description | Default |
+|--------|-------------|---------|
+| `out-label` | Output directory name (defaults to input filename) | `default` |
+| `n-cpu` | Number of CPU cores | `4` |
+| `n-flanking5` | Flanking genes on the 5′ end | `4` |
+| `n-flanking3` | Flanking genes on the 3′ end | `4` |
+| `collect-only` | Collect genomic contexts only, skip comparisons | `false` |
+| `exclude-partial` | Exclude partial genomic context blocks | `true` |
+| `max-evalue` | E-value cutoff for homology (protein families) | `0.001` |
+| `min-coverage` | Minimum alignment coverage for homology | `0.7` |
+| `genome-classification` | Contig classification method: `binning` or `taxonomy` | `binning` |
+| `MGnify-path` | Path to the MGnify database folder | — |
+| `kraken-path` | Path to the Kraken2 GTDB index (for taxonomy) | — |
+| `gff-path` | Path to GFF annotation folder (local provider) | — |
+| `db-path` | Path to local GCsnap SQLite database | — |
+| `tmp-folder` | Temporary folder for MMseqs2 files | `./tmp` |
+| `operon-cluster-advanced` | Enable advanced PaCMAP operon clustering | `false` |
+| `max-family-freq` | Max family frequency for advanced clustering | `20` |
+| `min-family-freq` | Min family frequency for advanced clustering | `2` |
+| `min-family-freq-accross-contexts` | Min family frequency within a context type | `30` |
+| `n-max-operons` | Max number of top-populated operon types shown | `30` |
+| `interactive` | Generate interactive HTML output | `true` |
+| `genomic-context-cmap` | Matplotlib colormap for syntenic blocks | `Spectral` |
+| `gc-legend-mode` | Legend mode: `species` or `ncbi_code` | `species` |
+| `out-format` | Figure format: `png`, `svg`, or `pdf` | `png` |
+| `min-coocc` | Minimum co-occurrence to connect two genes in graphs | `0.3` |
+| `sort-mode` | Context sort mode: `taxonomy`, `as_input`, `tree`, `operon`, `operon cluster` | `taxonomy` |
+| `overwrite-config` | Allow CLI values to overwrite `config.yaml` | `false` |
+| `mmseqs-executable-path` | Path to MMseqs2 binary if not in conda env | — |
+| `foldseek-executable-path` | Path to Foldseek binary if not in conda env | — |
+| `sourmash-executable-path` | Path to Sourmash binary if not in conda env | — |
 
-## Citing GCsnap
+For arguments ending in `-path` to executables, run `which mmseqs` (or similar) and paste the result into `config.yaml`.
 
-J. Pereira, GCsnap: interactive snapshots for the comparison of protein-coding genomic contexts, 
-J. Mol. Biol. (2021) 166943. https://doi.org/https://doi.org/10.1016/j.jmb.2021.166943.
+---
 
-## Acknowledgements
+## Credits
 
-GCsnap was developed during the COVID-19 lockdown.
+metaGCsnap is built on top of [GCsnap and GCsnap 2.0](https://www.sciencedirect.com/science/article/pii/S0022283621001443). The original desktop and cluster versions can be found at [gcsnap2desktop](https://github.com/GCsnap/gcsnap2desktop) and [gcsnap2cluster](https://github.com/GCsnap/gcsnap2cluster).
 
-I would like to thank Prof. Andrei N. Lupas, Dr. Laura Weidmann-Krebs, Dr. Marcus Hartmann, Dr. Vikram Alva, Dr. Felipe Merino, Dr. Jörg Martin, Dr. Adrian Fuchs, Hadeer Elhabashy, Prof. Volkmar Braun, Dr. João Rodrigues and Dr. João Barros for the great support and the insightful discussions that helped the development of GCsnap.
+If you use metaGCsnap, please cite the original GCsnap paper:
 
-GCsnap is being maintained and further developed at the Biozentrum of the University of Basel, and I would like to thank the Schwede team, the Basler group and the Ciorba group for insightful discussions that are driving many new developments.
+> J. Pereira, GCsnap: interactive snapshots for the comparison of protein-coding genomic contexts, *J. Mol. Biol.* (2021) 166943. https://doi.org/10.1016/j.jmb.2021.166943
+
+metaGCsnap is being developed at the Biozentrum of the University of Basel (Schwede group).
