@@ -14,6 +14,7 @@ crashing mid-run.
 
 import sys
 import json
+import multiprocessing
 from pathlib import Path
 
 from gcsnap.rich_console import RichConsole
@@ -25,6 +26,7 @@ from gcsnap.utils import CustomLogger
 from gcsnap.targets import Target
 from gcsnap.annotations.families import Families
 from gcsnap.annotations.operons import Operons
+from gcsnap.annotations.taxonomy import SourMashBinning
 from gcsnap.visual.runner import Figures
 
 
@@ -133,6 +135,10 @@ def main():
     E. Produce figures.
     F. Write outputs.
     """
+
+    # Use forkserver instead of fork to avoid deadlocks on HPC systems where
+    # forked workers inherit locked states from numpy/biopython in the parent.
+    multiprocessing.set_start_method('forkserver', force=True)
 
     # ── initialise logging & console ─────────────────────────────────────
     CustomLogger.configure_loggers()
@@ -276,6 +282,10 @@ def main():
         gc.create_and_write_operon_types_summary()
         gc.find_most_populated_operon_types()
         t_operons.stop()
+
+        # detect genomic bins
+        binning = SourMashBinning(gc=gc, config=config)
+        binning.run()
 
         # ── E. figures ────────────────────────────────────────────────────
         t_figures = timing.timer('Step 4: Figures')
