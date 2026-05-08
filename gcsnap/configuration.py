@@ -349,6 +349,11 @@ class Configuration:
         self.parser.add_argument('-h', '--help', action='store_true',
                                  help='Show this help message and exit')
 
+        # config file path – parsed early in __main__ but registered here
+        # so the main parser does not reject it as an unknown argument
+        self.parser.add_argument('--config', type=str, default=None,
+                                 help='Path to a custom config.yaml file.')
+
         # legacy targets argument – kept for notebook / Target() compatibility
         self.parser.add_argument('-t', '--targets', nargs='+', type=str,
                                  help='(Legacy) List of input targets for use with the '
