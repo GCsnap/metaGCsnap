@@ -14,6 +14,7 @@ crashing mid-run.
 
 import sys
 import json
+import argparse
 import multiprocessing
 from pathlib import Path
 
@@ -146,7 +147,14 @@ def main():
     console.print_title()
 
     # ── A. configuration ─────────────────────────────────────────────────
-    config = Configuration()
+    # Pre-parse --config before full Configuration init, since the config
+    # file path is needed to load all other arguments.
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument('--config', type=str, default=None,
+                            help='Path to a custom config.yaml file.')
+    pre_args, _ = pre_parser.parse_known_args()
+
+    config = Configuration(config_path=pre_args.config)
     config.parse_arguments()
 
     out_label = config.arguments['out_label']['value']
