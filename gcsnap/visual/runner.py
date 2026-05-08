@@ -17,8 +17,6 @@ from gcsnap.visual.static import draw_static
 from gcsnap.visual.interactive import draw_interactive
 from gcsnap.visual.advanced import draw_advanced
 from gcsnap.visual.summary import draw_summary
-from gcsnap.visual.dna_context import draw_dna_context
-
 
 class Figures:
     """
