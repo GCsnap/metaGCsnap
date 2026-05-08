@@ -47,11 +47,15 @@ class Dataset:
             output_dir (str or Path): The base directory where local files are stored.
         """
 
-        self.MGnify_local = Path(config.arguments['MGnify_path']['value']) #Path(config.arguments['data_path']['value']) / 'MGnify'
-        self.GTDB_local = Path(config.arguments['kraken_path']['value']) #Path(config.arguments['data_path']['value']) / 'kraken' / 'GTDB'
-        #self.taxonomy_local = Path(config.arguments['taxonomy_path']['value']) #Path(config.arguments['data_path']['value']) / 'taxonkit' / 'GTDB'
-        self.output_dir = Path(config.arguments['MGnify_dir']['value'] ) #[]Path(config.arguments['out_label']['value'] )
-        #self.query_fasta = config.targets[0] # this should be modified. orignal GCsnap target is just a list of id, while here we have only one fasta file. ideally, we can give it many fasta files, let's see.
+        mg_path = config.arguments.get('MGnify_path', {}).get('value')
+        if not mg_path:
+            raise ValueError("MGnify_path must be specified in configuration.")
+        self.MGnify_local = Path(mg_path)
+
+        kraken_path = config.arguments.get('kraken_path', {}).get('value') or '.'
+        self.GTDB_local = Path(kraken_path)
+
+        self.output_dir = Path(config.arguments['MGnify_dir']['value'] )
         self.query_basename = basename
         
         # scraper
