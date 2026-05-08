@@ -137,21 +137,28 @@ class SourMashBinning:
 
     def _compute_target_distance_matrix(self):
 
-        # 1. Prepare the exact order of old contigs and their new target names
-        source_contigs = []
+        # 1. Deduplicate the distance matrix index to avoid pandas .loc returning
+        #    extra rows when the same contig name appears more than once.
+        dm = self.distance_matrix[~self.distance_matrix.index.duplicated(keep='first')]
+        dm = dm.loc[:, ~dm.columns.duplicated(keep='first')]
+
+        # 2. Prepare the exact order of old contigs and their new target names.
+        #    Use integer positions (iloc) so duplicate index labels cannot inflate
+        #    the result.
+        contig_to_pos = {c: i for i, c in enumerate(dm.index)}
+        source_positions = []
         new_targets = []
 
-        for contig in self.distance_matrix.index:
-            # Get the targets from the dict (fallback to the contig name if missing or empty)
+        for contig in dm.index:
             targets = self.region_to_targets.get(contig, [contig]) or [contig]
             for target in targets:
-                source_contigs.append(contig)
+                source_positions.append(contig_to_pos[contig])
                 new_targets.append(target)
 
-        # 2. Expand the matrix using .loc (this automatically duplicates rows and columns!)
-        target_dist_matrix = self.distance_matrix.loc[source_contigs, source_contigs].copy()
+        # 3. Expand the matrix using integer positions — guaranteed 1 row per entry.
+        target_dist_matrix = dm.iloc[source_positions, source_positions].copy()
 
-        # 3. Replace the old contig names with the new target names
+        # 4. Replace the old contig names with the new target names
         target_dist_matrix.index = new_targets
         target_dist_matrix.columns = new_targets
         target_dist_matrix.index = target_dist_matrix.index.rename('target')
