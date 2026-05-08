@@ -170,7 +170,15 @@ class SourMashBinning:
         labels = pd.read_csv(self.labels_file, usecols=['sort_order','filename'],index_col='sort_order')
         
         order_to_contig_dict = labels['filename'].to_dict()
-        order_to_contig_dict = { k: self.gere_cols[v] for k,v in order_to_contig_dict.items()}
+        # sourmash appends a sequence index (e.g. '.1') to filenames when
+        # sketching multi-sequence files. Strip it before mapping to genomic
+        # regions via gere_cols.
+        def _strip_seq_index(filename):
+            if filename in self.gere_cols:
+                return self.gere_cols[filename]
+            stripped = filename.rsplit('.', 1)[0]
+            return self.gere_cols.get(stripped, filename)
+        order_to_contig_dict = {k: _strip_seq_index(v) for k, v in order_to_contig_dict.items()}
         
         self.sim_matrix = pd.read_csv(self.similarity_matrix_file)
         self.sim_matrix.index += 1
@@ -219,8 +227,22 @@ class SourMashBinning:
                 with open(self.bins_file, 'w') as f:
                     json.dump(self.bins, f, indent=2)
     
+    def _resolve_contig_key(self, contig: str) -> str:
+        """
+        Return the key used in ``region_to_targets`` that corresponds to *contig*.
+
+        SourMash appends a sequence index (e.g. ``.1``) to filenames when
+        sketching multi-sequence FASTA files.  The bins dict may therefore be
+        keyed by ``path.fna.gz.1`` while ``region_to_targets`` is keyed by
+        ``path.fna.gz``.  Strip the trailing ``.N`` component when necessary.
+        """
+        if contig in self.region_to_targets:
+            return contig
+        stripped = contig.rsplit('.', 1)[0]
+        return stripped if stripped in self.region_to_targets else contig
+
     def _release_tree(self):
-        
+
         if os.path.exists(self.bins_file):
 
             with open(self.bins_file, 'r') as f:
@@ -228,12 +250,18 @@ class SourMashBinning:
 
         self.tree = {}
 
-        for contig,bin in self.bins.items():
-            self.tree[f'bin {bin}']={'target_members':[],'cds_codes':[]}
-            for cds in self.region_to_targets[contig]:
-                self.tree[f'bin {bin}']['target_members'].append(cds)
-                self.tree[f'bin {bin}']['cds_codes'].append(cds)
-        
+        for contig, bin in self.bins.items():
+            resolved = self._resolve_contig_key(contig)
+            targets = self.region_to_targets.get(resolved, [])
+            if not targets:
+                continue
+            bin_key = f'bin {bin}'
+            if bin_key not in self.tree:
+                self.tree[bin_key] = {'target_members': [], 'cds_codes': []}
+            for cds in targets:
+                self.tree[bin_key]['target_members'].append(cds)
+                self.tree[bin_key]['cds_codes'].append(cds)
+
         self.tree = {'root':self.tree}
         with open(self.tree_file, 'w') as f:
             json.dump(self.tree, f, indent=2)
@@ -246,11 +274,16 @@ class SourMashBinning:
     
     def _update_taxonomy(self):
 
-        
-        for k,v in self.gc.syntenies.items():
-            
+        # Build a normalised lookup: strip any sourmash .N suffix from bin keys
+        # so that contig_id (real file path, no suffix) always finds a match.
+        normalised_bins: dict = {}
+        for raw_key, bin_id in self.bins.items():
+            resolved = self._resolve_contig_key(raw_key)
+            normalised_bins[resolved] = bin_id
+
+        for k, v in self.gc.syntenies.items():
             contig_id = v['assembly_metadata']['genomic_region']
-            v['bin_type'] = self.bins.get(contig_id,0)
+            v['bin_type'] = normalised_bins.get(contig_id, 0)
             
             #if v['taxonomy']['taxon_name'] == None
             #    v['taxonomy']['taxon_name']=f'metagenomic bin {self.bins.get(contig_id,"unclassified")}'
