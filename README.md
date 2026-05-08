@@ -47,6 +47,12 @@ bash install_providers.sh --local     # local database provider
 bash install_providers.sh --complete  # all three providers
 ```
 
+To confirm that all the providers are available you can run:
+
+```bash
+python -c "from gcsnap.providers.ncbi.make import Maker; print('ncbi ok'); from gcsnap.providers.MGnify.make import Maker; print('mgnify ok'); from gcsnap.providers.local.make import Maker; print('local ok')"
+```
+
 Providers can be added at any time after the base install. The base environment is preserved and only the provider-specific packages are added.
 
 ### 1.3 Configure provider fields
@@ -310,7 +316,6 @@ Only needed if the tools are not available in the conda environment (e.g. loaded
 | Option | Description | Default |
 |--------|-------------|---------|
 | `mmseqs-executable-path` | Path to MMseqs2 binary | — |
-| `foldseek-executable-path` | Path to Foldseek binary | — |
 | `sourmash-executable-path` | Path to Sourmash binary | — |
 | `tmp-folder` | Temporary folder for intermediate files | `./tmp` |
 | `tmp-mmseqs-folder` | Temporary folder for MMseqs2 files specifically (defaults to `tmp-folder`) | — |

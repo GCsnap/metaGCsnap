@@ -196,10 +196,6 @@ mmseqs-executable-path:
     value:
     type: str
     help: Path of MMseqs2 executable if not installed in the conda environment.
-foldseek-executable-path:
-    value:
-    type: str
-    help: Path of Foldseek executable if not installed in the conda environment.
 sourmash-executable-path:
     value:
     type: str
