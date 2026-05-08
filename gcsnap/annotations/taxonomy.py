@@ -142,8 +142,8 @@ class SourMashBinning:
         new_targets = []
 
         for contig in self.distance_matrix.index:
-            # Get the targets from the dict (fallback to the contig name if missing)
-            targets = self.region_to_targets.get(contig, [contig])
+            # Get the targets from the dict (fallback to the contig name if missing or empty)
+            targets = self.region_to_targets.get(contig, [contig]) or [contig]
             for target in targets:
                 source_contigs.append(contig)
                 new_targets.append(target)
@@ -271,8 +271,10 @@ class SourMashBinning:
             with self.console.status('Computing distance matrix'):
                 self._compute_distance_matrix()
         else:
-            with self.console.status('Distance matrix already exists.'):
-                pass
+            with self.console.status('Distance matrix already exists — loading from disk.'):
+                self.distance_matrix = pd.read_csv(
+                    self.bins_distance_matrix_file, index_col='contig'
+                )
 
         if not os.path.exists(self.targets_distance_matrix_file):
             with self.console.status('Preparing target level distance matrix'):

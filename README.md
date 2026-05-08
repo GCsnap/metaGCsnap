@@ -151,6 +151,12 @@ Depending on the installed providers, you will have to specify
 | local | `gff-path` | Path to your folder of `.gff.gz` annotation files |
 | local | `db-path` | Path to your GCsnap SQLite database |
 
+Once you have set up these configuration fielkds, you can fill test the workflow with:
+
+```bash
+GCsnap --out-label test/gcsnap --ncbi-targets test/ncbi_ids.txt --mgnify-targets test/mgnify_ids.txt 
+```
+
 ## 4. Usage
 GCsnap requires at least one provider target file. Provider flags can be combined freely to run a mixed NCBI + MGnify job.
 
