@@ -738,7 +738,8 @@ class GenomicContext:
                 if 'TM_annotations' in self.syntenies[target]['flanking_genes']:
                     line_to_write += '\t' + self.syntenies[target]['flanking_genes']['TM_annotations'][i]
                 # add taxonomy information by searching the dictionary
-                line_to_write += '\t' + '\t'.join(tax_search_dict.get(target)) + '\n'
+                tax_info = tax_search_dict.get(target) or []
+                line_to_write += '\t' + '\t'.join(tax_info) + '\n'
                 lines_to_write.append(line_to_write)
 
         summary_file = os.path.join(file_path, file_name)

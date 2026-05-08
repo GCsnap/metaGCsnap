@@ -87,7 +87,10 @@ def taxonomy_distance_matrix(gc) -> tuple[np.ndarray, list[str]]:
     Distance matrix for ``sort_mode='taxonomy'``.
 
     Reads ``gc.taxonomic_distance_file`` (target-indexed gzip CSV).
+    Falls back to operon distance if the file is not available.
     """
+    if not hasattr(gc, 'taxonomic_distance_file') or gc.taxonomic_distance_file is None:
+        return operon_distance_matrix(gc, {})
     dm = _read_csv_matrix(gc.taxonomic_distance_file, index_col='target')
     dm = _filter_to_targets(dm, list(gc.syntenies.keys()))
     return dm.values, dm.index.tolist()
