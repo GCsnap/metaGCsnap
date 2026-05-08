@@ -7,9 +7,6 @@ import psutil
 from rich.console import Console
 # pip install pyyaml
 import yaml
-# pip install ruamel.yaml
-from ruamel.yaml import YAML
-from ruamel.yaml.constructor import ConstructorError
 
 from gcsnap.rich_console import RichConsole 
 
@@ -260,37 +257,32 @@ class Configuration:
 
     def is_yaml_valid(self) -> None:
         """
-        Check if a YAML file is valid and not empty. If not, delete the broken file
-        and return False.
+        Check if a YAML file is valid and not empty. If not, delete the broken file.
         """
-        yaml = YAML()
         try:
             with open(self.path, 'r') as file:
-                data = yaml.load(file)
+                data = yaml.safe_load(file)
                 if data is None:
-                    raise Exception
+                    raise ValueError('Empty YAML file')
         except FileNotFoundError:
-            pass                
-        except (ConstructorError, Exception):
+            pass
+        except (yaml.YAMLError, ValueError, Exception):
             os.remove(self.path)
             
     def write_configuration_yaml(self) -> None:
         """
         Write the configuration dictionary to the configuration file.
-        """        
+        """
         out = {self.underscore_to_hyphen(key): value for key, value in self.arguments.items()}
         header_comment = (
-            'Configuration file to set arguments for GCsnap.\n'
-            'To change argument, change: value: entry.\n'
-            'E.g. value: 1 to value: 2\n'
-            '---------------------------------------\n')
-        
+            '# Configuration file to set arguments for GCsnap.\n'
+            '# To change argument, change: value: entry.\n'
+            '# E.g. value: 1 to value: 2\n'
+            '# ---------------------------------------\n\n'
+        )
         with open(self.path, 'w') as file:
-            file.write('# ' + header_comment.replace('\n', '\n# ') + '\n')
-            # 4 is the indentation space
-            yaml = YAML()
-            yaml.indent(mapping=4, sequence=4, offset=2)  # Set indent and block sequence indent
-            yaml.dump(out, file)
+            file.write(header_comment)
+            yaml.dump(out, file, default_flow_style=False, allow_unicode=True, indent=4)
 
     def write_configuration_yaml_log(self, file_name: str, file_path: str = None) -> None:
         """

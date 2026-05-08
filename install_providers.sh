@@ -64,7 +64,10 @@ fi
 echo "==> Using ${PKG_MANAGER}"
 
 # Initialise the package manager so that 'activate' works inside the script.
-PKG_BASE="$(${PKG_MANAGER} info --base 2>/dev/null)"
+# Always use 'conda info --base' to get the base path reliably — mamba info
+# --base may print a label prefix on some versions, whereas conda always
+# returns a bare path.
+PKG_BASE="$(conda info --base 2>/dev/null)"
 source "${PKG_BASE}/etc/profile.d/conda.sh"
 if [[ "${PKG_MANAGER}" == "mamba" ]]; then
     source "${PKG_BASE}/etc/profile.d/mamba.sh" 2>/dev/null || true
@@ -73,17 +76,19 @@ fi
 update_provider() {
     local yml="$1"
     echo "  -> updating with ${yml} ..."
-    ${PKG_MANAGER} env update -n gcsnap -f "${yml}"
+    ${PKG_MANAGER} env update -n metagcsnap -f "${yml}"
 }
 
 # ── step 1: base environment ──────────────────────────────────────────────────
 
 echo ""
-echo "==> Creating base environment from envs/GCsnap_base.yml ..."
-${PKG_MANAGER} env create -f "${ENVS_DIR}/GCsnap_base.yml" || {
+echo "==> Creating base environment from envs/metaGCsnap_base.yml ..."
+if [ -d "${PKG_BASE}/envs/metagcsnap" ]; then
     echo "  (environment already exists – updating instead)"
-    ${PKG_MANAGER} env update -n gcsnap -f "${ENVS_DIR}/GCsnap_base.yml" --prune
-}
+    ${PKG_MANAGER} env update -n metagcsnap -f "${ENVS_DIR}/metaGCsnap_base.yml" --prune
+else
+    ${PKG_MANAGER} env create -f "${ENVS_DIR}/metaGCsnap_base.yml"
+fi
 
 # ── step 2: provider extras ───────────────────────────────────────────────────
 
@@ -114,9 +119,9 @@ esac
 
 echo ""
 echo "==> Installing gcsnap in editable mode ..."
-${PKG_MANAGER} run -n gcsnap pip install -e "${SCRIPT_DIR}"
+${PKG_MANAGER} run -n metagcsnap pip install -e "${SCRIPT_DIR}"
 
 echo ""
 echo "==> Done.  Activate your environment with:"
-echo "      ${PKG_MANAGER} activate gcsnap"
+echo "      ${PKG_MANAGER} activate metagcsnap"
 echo ""

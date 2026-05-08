@@ -1,9 +1,11 @@
-name: gcsnap
+name: metagcsnap
 
 channels:
   - conda-forge
   - bioconda
 
 dependencies:
+  - setuptools
   - dask
-  - jsonapi-client
+  - pip:
+    - jsonapi-client

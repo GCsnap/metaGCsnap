@@ -31,7 +31,7 @@ metaGCsnap is an extended version of [GCsnap 2.0](https://github.com/GCsnap/gcsn
 git clone https://github.com/GCsnap/metaGCsnap.git
 cd metaGCsnap
 bash install_providers.sh --base
-conda activate gcsnap
+conda activate metagcsnap
 ```
 
 This creates the `gcsnap` conda environment with all core dependencies (Python 3.11, MMseqs2, Biopython, Bokeh, Matplotlib, Networkx, PaCMAP, Scikit-learn, Pandas, Rich, Requests, and more) and registers the `GCsnap` CLI. No data provider is available yet.

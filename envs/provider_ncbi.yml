@@ -5,6 +5,7 @@ channels:
   - bioconda
 
 dependencies:
-  - jsonapi-client
+  - setuptools
   - pip:
+    - jsonapi-client
     - pypdl

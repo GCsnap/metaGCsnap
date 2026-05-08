@@ -24,6 +24,10 @@ dependencies:
   - requests
   - tqdm
   - rich
+  - pyyaml
+  - psutil
+  # --- graph / clustering ---
+  - infomap
   # --- packaging ---
   - pip
   - setuptools

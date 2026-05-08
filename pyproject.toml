@@ -4,9 +4,9 @@ name = "metaGCsnap"
 version = "1.0.0"
 description = "metaGCsnap: Interactive snapshots for the comparison of protein-coding genomic contexts across biomes"
 authors = [
-    { name = "Joana Pereira", email = "pereira.joanam@gmail.com"
-      name = "Jacopo Pasqualini, email="jacopo.pasqualini95@gmail.com",
-      name = "Reto Krummenacher", email="reto.krummenacher@unibas.ch" },
+    { name = "Joana Pereira", email = "pereira.joanam@gmail.com" },
+    { name = "Jacopo Pasqualini", email = "jacopo.pasqualini95@gmail.com" },
+    { name = "Reto Krummenacher", email = "reto.krummenacher@unibas.ch" },
 ]
 
 readme = "README.md"
