@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install_providers.sh – create the gcsnap conda environment and optionally
+# install_providers.sh – create the gcsnap conda/mamba environment and optionally
 # add provider-specific dependencies.
 #
 # Usage:
@@ -10,9 +10,10 @@
 #   bash install_providers.sh --complete
 #
 # A flag is always required.  The gcsnap base environment is always created
-# first; provider flags add their extra packages on top via conda env update.
+# first; provider flags add their extra packages on top via env update.
 # The gcsnap package itself is installed in editable mode (pip install -e .)
 # at the end regardless of which flag is used.
+# mamba is used automatically if available, otherwise falls back to conda.
 
 set -euo pipefail
 
@@ -50,26 +51,38 @@ esac
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-# Initialise conda so that 'conda activate' works inside the script.
-CONDA_BASE="$(conda info --base 2>/dev/null)" || {
-    echo "Error: conda not found. Please install conda/mamba and try again."
+# Auto-detect mamba or conda.
+if command -v mamba &>/dev/null; then
+    PKG_MANAGER="mamba"
+elif command -v conda &>/dev/null; then
+    PKG_MANAGER="conda"
+else
+    echo "Error: neither mamba nor conda found. Please install one and try again."
     exit 1
-}
-source "${CONDA_BASE}/etc/profile.d/conda.sh"
+fi
+
+echo "==> Using ${PKG_MANAGER}"
+
+# Initialise the package manager so that 'activate' works inside the script.
+PKG_BASE="$(${PKG_MANAGER} info --base 2>/dev/null)"
+source "${PKG_BASE}/etc/profile.d/conda.sh"
+if [[ "${PKG_MANAGER}" == "mamba" ]]; then
+    source "${PKG_BASE}/etc/profile.d/mamba.sh" 2>/dev/null || true
+fi
 
 update_provider() {
     local yml="$1"
     echo "  -> updating with ${yml} ..."
-    conda env update -n gcsnap -f "${yml}"
+    ${PKG_MANAGER} env update -n gcsnap -f "${yml}"
 }
 
 # ── step 1: base environment ──────────────────────────────────────────────────
 
 echo ""
 echo "==> Creating base environment from envs/GCsnap_base.yml ..."
-conda env create -f "${ENVS_DIR}/GCsnap_base.yml" || {
+${PKG_MANAGER} env create -f "${ENVS_DIR}/GCsnap_base.yml" || {
     echo "  (environment already exists – updating instead)"
-    conda env update -n gcsnap -f "${ENVS_DIR}/GCsnap_base.yml" --prune
+    ${PKG_MANAGER} env update -n gcsnap -f "${ENVS_DIR}/GCsnap_base.yml" --prune
 }
 
 # ── step 2: provider extras ───────────────────────────────────────────────────
@@ -101,9 +114,9 @@ esac
 
 echo ""
 echo "==> Installing gcsnap in editable mode ..."
-conda run -n gcsnap pip install -e "${SCRIPT_DIR}"
+${PKG_MANAGER} run -n gcsnap pip install -e "${SCRIPT_DIR}"
 
 echo ""
 echo "==> Done.  Activate your environment with:"
-echo "      conda activate gcsnap"
+echo "      ${PKG_MANAGER} activate gcsnap"
 echo ""

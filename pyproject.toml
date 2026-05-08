@@ -1,10 +1,12 @@
 
 [project]
-name = "gcsnap"
-version = "2.0.0"
-description = "GCsnap: Interactive snapshots for the comparison of protein-coding genomic contexts"
+name = "metaGCsnap"
+version = "1.0.0"
+description = "metaGCsnap: Interactive snapshots for the comparison of protein-coding genomic contexts across biomes"
 authors = [
-    {name = "Joana Pereira", email = "pereira.joanam@gmail.com"},
+    { name = "Joana Pereira", email = "pereira.joanam@gmail.com"
+      name = "Jacopo Pasqualini, email="jacopo.pasqualini95@gmail.com",
+      name = "Reto Krummenacher", email="reto.krummenacher@unibas.ch" },
 ]
 
 readme = "README.md"
@@ -18,7 +20,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/RetoKrummenacher/GCsnap"
+Homepage = "https://github.com/GCsnap"
 
 [project.scripts]
 GCsnap = "gcsnap.__main__:main"

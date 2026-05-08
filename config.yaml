@@ -1,12 +1,25 @@
-# Configuration file to set arguments for GCsnap.
-# To change argument, change: value: entry.
+# Configuration file for metaGCsnap.
+# To change an argument, edit its value: entry.
 # E.g. value: 1 to value: 2
 # ---------------------------------------
-# 
+
+# ── General ───────────────────────────────────────────────────────────────────
+
 out-label:
     value: default
     type: str
     help: Name of output directory. If default, name of the input file.
+n-cpu:
+    value: 4
+    type: int
+    help: Number of cores to use.
+overwrite-config:
+    value: false
+    type: bool
+    help: Overwrite the argument value in config file with CLI value.
+
+# ── Targets ───────────────────────────────────────────────────────────────────
+
 ncbi-targets:
     value:
     type: str
@@ -19,77 +32,10 @@ local-targets:
     value:
     type: str
     help: Path to a plain-text file of local-database target IDs (one per line).
-ncbi-user-email:
-    value:
-    type: str
-    help: Your NCBI-associated email. Can also be set via the NCBI_USER_EMAIL environment variable.
-ncbi-api-key:
-    value:
-    type: str
-    help: Your NCBI API key. Can also be set via the NCBI_API_KEY environment variable.
-MGnify-path:
-    value:
-    type: str
-    help: Path to the MGnify database folder. To get all the data, look at the ./supplementary folder
-MGnify-proxies:
-    value: {'http': 'http://squid.deploy.int:3128', 'https': 'http://squid.deploy.int:3128'}
-    type: dict
-    help: Proxies to use for MGnify database download.
-genome-classification:
-    value: binning
-    type: str
-    choices:
-      - binning
-      - taxonomy
-    help: Method to classify metagenomic contigs.
-kraken-path:
-    value:
-    type: str
-    help: Path to the Kraken database folder for taxonomic classification. To get all the data, look at the ./supplementary folder
-assemblies-data-update-age:
-    value: 14
-    type: int
-    help: Age of the assembly files in days until they are downlaoded again.
-n-cpu:
-    value: 4
-    type: int
-    help: Number of cores to use.
-gff-path:
-    value: /storage/shared/msc/gcsnap_data/gff
-    type: str
-    help: Path to the flat folder containing all .gff.gz annotation files (used at pipeline runtime).
-db-path:
-    value: /storage/shared/msc/gcsnap_data/GCsnap
-    type: str
-    help: Path to the GCsnap database folder containing assemblies.db, sequences.db and the summary files.
-tmp-mmseqs-folder:
-    value:
-    type: str
-    help: The temporary folder to store mmseqs files. May be changed so that 
-        intermediary mmseqs files are saved somewhere else then the automatic 
-        'out-label' directory.
-tmp-folder:
-    value: ./tmp
-    type: str
-    help: The temporary folder to store mmseqs files. May be changed so that intermediary
-        mmseqs files are saved somewhere else then the automatic 'out-label' directory.
-foldseek-executable-path:
-    value:
-    type: str
-    help: Path of Foldseek executable (i.e., foldseek) if not installed in Conda environment.
-mmseqs-executable-path:
-    value:
-    type: str
-    help: Path of MMseqs executable (i.e., mmseqs.bat) if not installed in Conda environment.
-sourmash-executable-path:
-    value:
-    type: str
-    help: Path of Sourmash executable (i.e., sourmash) if not installed in Conda environment.
-collect-only:
-    value: false
-    type: bool
-    help: Boolean statement to make GCsnap collect genomic contexts only, 
-        without comparing them.
+
+
+# ── Genomic context collection ────────────────────────────────────────────────
+
 n-flanking5:
     value: 4
     type: int
@@ -101,70 +47,67 @@ n-flanking3:
 exclude-partial:
     value: true
     type: bool
-    help: Exclude partial operon/genomic_context blocks. If turned off, partial 
+    help: Exclude partial operon/genomic_context blocks. If turned off, partial
         cases will still be ignored to get the most common genomic features.
+collect-only:
+    value: false
+    type: bool
+    help: Collect genomic contexts only, without running comparisons or producing figures.
+
+# ── Protein families ──────────────────────────────────────────────────────────
+
 max-evalue:
     value: 0.001
     type: float
-    help: Max e-value at which two sequences are considered to be homologous. 
+    help: Max e-value at which two sequences are considered to be homologous.
         Required to define protein families.
-default-base:
-    value: 10
-    type: int
-    help: Artificial distance value for two sequences that do not match with an 
-        E-value better than --max-evalue.
 min-coverage:
     value: 0.7
     type: float
     help: Minimum coverage of target and subject a match needs to be so that two
-        sequences are considered to be homologous. Required to define protein 
-        families.
+        sequences are considered to be homologous. Required to define protein families.
+default-base:
+    value: 10
+    type: int
+    help: Artificial distance value for two sequences that do not match with an
+        E-value better than --max-evalue.
 num-iterations:
     value: 1
     type: int
-    help: Number of iterations for all-against-all searches. Required to define 
-        protein families.
+    help: Number of iterations for all-against-all searches. Required to define protein families.
+
+# ── Operon clustering ─────────────────────────────────────────────────────────
+
 operon-cluster-advanced:
     value: false
     type: bool
-    help: Boolean statement to use the operon clustering advanced mode using 
-        PacMAP.
+    help: Use the advanced operon clustering mode based on PaCMAP dimensionality reduction.
 max-family-freq:
     value: 20
     type: int
-    help: Maximum frequency of a family in the set of genomic contexts found to 
+    help: Maximum frequency of a family in the set of genomic contexts found to
         be considered for advanced operon clustering.
 min-family-freq:
     value: 2
     type: int
-    help: Minimum frequency of a family in the set of genomic contexts found to 
+    help: Minimum frequency of a family in the set of genomic contexts found to
         be considered for advanced operon clustering.
 min-family-freq-accross-contexts:
     value: 30
     type: int
-    help: Minimum frequency of a family in a conserved genomic context type to 
+    help: Minimum frequency of a family in a conserved genomic context type to
         be considered as a member.
 n-max-operons:
     value: 30
     type: int
-    help: Maximum number of top most populated operon/genomic_context block 
-        types.
+    help: Maximum number of top most populated operon/genomic_context block types.
+
+# ── Output and figures ────────────────────────────────────────────────────────
+
 interactive:
     value: true
     type: bool
-    help: Boolean statement to make the interactive html output.
-genomic-context-cmap:
-    value: Spectral
-    type: str
-    help: Color map (as of matplotlib) to assign colors to and plot the syntenic
-        blocks.
-gc-legend-mode:
-    value: species
-    type: str
-    help: Mode of the genomic context legend.
-    choices:
-      - species
-      - ncbi_code
+    help: Generate the interactive HTML output.
 out-format:
     value: png
     type: str
@@ -173,11 +116,21 @@ out-format:
       - png
       - svg
       - pdf
+genomic-context-cmap:
+    value: Spectral
+    type: str
+    help: Matplotlib colormap to assign colors to syntenic blocks.
+gc-legend-mode:
+    value: species
+    type: str
+    help: Mode of the genomic context legend.
+    choices:
+      - species
+      - ncbi_code
 min-coocc:
     value: 0.3
     type: float
-    help: Minimum maximum co-occurrence of two genes to be connected in the 
-        graphs.
+    help: Minimum co-occurrence of two genes to be connected in the graphs.
 sort-mode:
     value: taxonomy
     type: str
@@ -188,7 +141,74 @@ sort-mode:
       - tree
       - operon
       - operon cluster
-overwrite-config:
-    value: false
-    type: bool
-    help: Overwrite the argument value in config file with CLI value.
+
+# ── NCBI provider ─────────────────────────────────────────────────────────────
+
+ncbi-user-email:
+    value:
+    type: str
+    help: Your NCBI-associated email. Can also be set via the NCBI_USER_EMAIL environment variable.
+ncbi-api-key:
+    value:
+    type: str
+    help: Your NCBI API key. Can also be set via the NCBI_API_KEY environment variable.
+assemblies-data-update-age:
+    value: 14
+    type: int
+    help: Age of the assembly files in days until they are downloaded again.
+
+# ── MGnify provider ───────────────────────────────────────────────────────────
+
+MGnify-path:
+    value:
+    type: str
+    help: Path to the MGnify database folder. To get all the data, look at the ./supplementary folder.
+MGnify-proxies:
+    value: {'http': '', 'https': ''}
+    type: dict
+    help: Proxies to use for MGnify API calls (e.g. on HPC systems behind a firewall).
+genome-classification:
+    value: binning
+    type: str
+    choices:
+      - binning
+      - taxonomy
+    help: Method to classify metagenomic contigs / chromosomes.
+kraken-path:
+    value:
+    type: str
+    help: Path to the Kraken2 GTDB index for taxonomic classification. Required when genome-classification is set to taxonomy.
+
+# ── Local provider ────────────────────────────────────────────────────────────
+
+gff-path:
+    value:
+    type: str
+    help: Path to the flat folder containing all .gff.gz annotation files (used at pipeline runtime).
+db-path:
+    value:
+    type: str
+    help: Path to the GCsnap database folder containing assemblies.db, sequences.db and the summary files.
+
+# ── Executables ───────────────────────────────────────────────────────────────
+
+mmseqs-executable-path:
+    value:
+    type: str
+    help: Path of MMseqs2 executable if not installed in the conda environment.
+foldseek-executable-path:
+    value:
+    type: str
+    help: Path of Foldseek executable if not installed in the conda environment.
+sourmash-executable-path:
+    value:
+    type: str
+    help: Path of Sourmash executable if not installed in the conda environment.
+tmp-folder:
+    value: ./tmp
+    type: str
+    help: Temporary folder for intermediate files.
+tmp-mmseqs-folder:
+    value: ./
+    type: str
+    help: Temporary folder for MMseqs2 intermediate files. If unset, defaults to tmp-folder.

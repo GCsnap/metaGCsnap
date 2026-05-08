@@ -1,4 +1,4 @@
-name: gcsnap
+name: metagcsnap
 
 channels:
   - conda-forge
